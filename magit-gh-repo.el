@@ -109,6 +109,7 @@
                             repo-name)
                            (remote-repo-names (car remote-repo-names))))))
 
+;;;###autoload
 (defun create (topdir &optional remote repo-name)
   (interactive (let* ((topdir (ask-topdir))
                       (remote (ask-new-remote topdir))
@@ -126,6 +127,7 @@
       (magit-run-git "remote" "add" "-f" remote url)
       (magit-push))))
 
+;;;###autoload
 (defun delete (repo-name &optional topdir remote)
   (interactive (let* ((topdir (if (not current-prefix-arg) (magit-get-top-dir)
                                 (magit-read-top-dir (> (prefix-numeric-value
