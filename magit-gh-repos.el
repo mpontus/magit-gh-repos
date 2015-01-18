@@ -20,57 +20,115 @@
 
 ;;; Commentary:
 
-;; 
-
-;;; Code:
 
 (require 'magit)
 (require 'gh-repos)
 (eval-when-compile
   (require 'names))
 
+
+
+
+(defun magit-gh-repos (&optional username)
+	"Disoplay list of repos beloning to USER."
+	(interactive (list (read-string "User name: ")))
+	(when (string= "" username) (setq username nil))
+	(magit-mode-setup "*magit-gh-repos*" 'pop-to-buffer 
+										'magit-gh-repos-list-mode
+										'magit-gh-repos-display-list
+										username))
+
 (define-namespace magit-gh-repos- :group magit-gh-repos
 
-(defconst api (gh-repos-api "API" :cache t))
+(defface name-face'((t :inherit magit-log-sha1 :weight bold ))
+  "Face for repo name.")
+(defface description '(( :inherit magit-log-message ))
+  "Face for repo description.")
+(defface language'((t :inherit magit-log-head-label-wip))
+  "Face for repo language.")
+(defface homepage'((t :inherit magit-key-mode-button-face))
+  "Face for repo homepage.")
+(defface issues'((t :inherit 'magit-log-reflog-label-reset ))
+  "Face for non-null issues counts. ")
+(defface forks'((t :inherit magit-log-reflog-label-cherry-pick ))
+	"Face for non-null forks count. ")
+(defface watchers'((t :inherit magit-log-reflog-label-merge ))
+  "Face for non-null watchers. ")
+(defface dfate'((t :inherit magit-log-date ))
+  "Face for dates. ")
 
-(defun get-repos ()
-	(oref (gh-repos-user-list api) :data))
+
+(define-derived-mode list-mode magit-mode "Github Repos*"
+	"Mode for displaying github repos.")
+
+(defun display-list (username)
+	(magit-set-buffer-margin (car magit-log-margin-spec) magit-log-show-margin)
+  (magit-log-margin-set-timeunit-width)
+	(let ((response (gh-repos-user-list (gh-repos-api "API" :cache t) username))
+				(title (if (not username) "Your repos" (format "%s's repos" username))))
+		(erase-buffer)      
+		(magit-log-margin-set-timeunit-width)
+		(magit-with-section (section repos username title)
+			(dolist (repo (oref response :data))
+				(let ((start (point)))
+					(magit-with-section (section repos (oref repo :name) (oref repo :name)) 
+						;; Display margin overlay on the first (header) line.
+						(goto-char (point-at-bol 2))
+						;; Display remaining data in side new secion
+						(magit-with-section (section repos)
+							(insert (if (not (oref repo :description)) ""
+												(propertize (oref repo :description)
+																		'face '(description))) ?\n)
+							(insert (if (not (oref repo :homepage)) ""
+												(propertize (oref repo :homepage)
+																		'face '(homepage))) ?\n)))
+					(save-excursion
+						(goto-char start)
+						(let* ((date (or (oref repo :pushed-at) (oref repo :created-at)))
+									 (time (number-to-string (float-time (date-to-time date))))) 
+							(magit-format-log-margin (oref (oref repo :owner) :login) date))))))))
+
+(defconst api (gh-repos-api "API" :cache t))
+(defun get-repos (&optional username)
+	(oref (gh-repos-user-list api username) :data))
 
 (defun read-repo (prompt &optional default)
 	(let* ((prompt (if (not default) (concat prompt ": ")
-										 (format "%s (%s): " prompt default)))
-				 (alist (mapcar (lambda (repo) (cons (oref repo :name) repo))
-									(oref (gh-repos-user-list api) :data)))
-				 (answer (completing-read prompt alist nil nil nil nil default)))
+									 (format "%s (%s): " prompt default)))pp
+									 (alist (mapcar (lambda (repo) 
+																		(cons (oref repo :name) repo))
+																	(oref (gh-repos-user-list api) :data)))
+									 (answer (completing-read prompt alist nil
+																						nil nil nil default)))
 		(or (cdr (assoc answer alist)) answer)))
 
 :autoload
 (defun create (repo-name)
 	"Create new github repo named REPO-NAME."
-  (interactive (list (read-string "Create new repo: "
+	(interactive (list (read-string "Create new repo: "
 																	(file-name-nondirectory
 																	 (directory-file-name
 																		(or (magit-get-top-dir)
 																				default-directory))))))
-  (let* ((repo-stub (gh-repos-repo-stub "repo" :name repo-name))
+	(let* ((repo-stub (gh-repos-repo-stub "repo" :name repo-name))
 				 (response (gh-repos-repo-new api repo-stub))
 				 (repo (oref response :data)))
 		(if (<= 300 (oref response :http-status))
 				(error (cdr (assq 'status-string
 													(oref response :headers))))
-				(remote-add (oref response :data)))))
+			(remote-add (oref response :data)))))
 
 :autoload
 (defun rename (repo new-name)
 	"Rename REPO to NEW-NAME."
-  (interactive
+	(interactive
 	 (list (let* ((repo (read-repo "Rename repo"))
 								(new-name (read-string "New name: " (oref repo :name))))
 					 (list repo new-name))))
 	(let ((response (gh-repos-repo-rename api repo new-name)))
 		(if (<= 300 (oref response :http-status))
 				(error (cdr (assq 'status-string (oref response :headers))))
-				(remote-switch repo (oref response :data)))))
+			(remote-switch repo (oref response :data)))))
 
 :autoload
 (defun delete (repo)
@@ -78,13 +136,12 @@
 	(interactive (list (read-repo "Delete repo")))
 	(let ((response (gh-repos-repo-delete api (oref repo :name))))
 		(if (<= 300 (oref response :http-status))
-				(error (cdr (assq 'status-string
-													(oref response :headers))))
-				(remote-remove repo))))
+				(error (cdr (assq 'status-string (oref response :headers))))
+			(remote-remove repo))))
 
-(defun get-remotes ()
+(defun get-remote ,@,toest
 	(mapcar (lambda (line) (cons (car line) (cadr line)))
-		(mapcar 'split-string (magit-git-lines "remote" "-v"))))
+					(mapcar '(stest  split-string) (magit-git-lines "remote" "-v"))))
 
 :autoload
 (defun remote-add (repo)
@@ -113,7 +170,7 @@
 		(when remote (magit-remove-remote (car remote))))))
 
 
-(provide 'magit-gh-repos)
+
 
 
 ;; Local Variables:
