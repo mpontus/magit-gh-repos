@@ -31,8 +31,8 @@
 
 (defun magit-gh-repos (&optional username)
 	"Disoplay list of repos beloning to USER."
-	(interactive (list (read-string "User name: ")))
-	(when (string= "" username) (setq username nil))
+	(interactive (let ((string (read-string "User name: ")))
+								 (if (string= "") nil string)))
 	(magit-mode-setup "*magit-gh-repos*" 'pop-to-buffer 
 										'magit-gh-repos-list-mode
 										'magit-gh-repos-display-list
@@ -42,7 +42,7 @@
 
 (defface name-face'((t :inherit magit-log-sha1 :weight bold ))
   "Face for repo name.")
-(defface description '(( :inherit magit-log-message ))
+(defface description '((t :inherit magit-log-message ))
   "Face for repo description.")
 (defface language'((t :inherit magit-log-head-label-wip))
   "Face for repo language.")
@@ -61,32 +61,30 @@
 (define-derived-mode list-mode magit-mode "Github Repos*"
 	"Mode for displaying github repos.")
 
+(setq $1 (gh-repos-user-list (gh-repos-api "API" :cache nil)))
+
+(with-mock
+	(magit-gh-repos "")
+)
+(gh-api-response-child-p $1)
+
+(magit-gh-repos $1)
+
 (defun display-list (username)
-	(magit-set-buffer-margin (car magit-log-margin-spec) magit-log-show-margin)
-  (magit-log-margin-set-timeunit-width)
-	(let ((response (gh-repos-user-list (gh-repos-api "API" :cache t) username))
+	(let ((response (or $1 (gh-repos-user-list (gh-repos-api "API" :cache nil) username)))
 				(title (if (not username) "Your repos" (format "%s's repos" username))))
-		(erase-buffer)      
-		(magit-log-margin-set-timeunit-width)
-		(magit-with-section (section repos username title)
-			(dolist (repo (oref response :data))
-				(let ((start (point)))
-					(magit-with-section (section repos (oref repo :name) (oref repo :name)) 
-						;; Display margin overlay on the first (header) line.
-						(goto-char (point-at-bol 2))
-						;; Display remaining data in side new secion
-						(magit-with-section (section repos)
-							(insert (if (not (oref repo :description)) ""
-												(propertize (oref repo :description)
-																		'face '(description))) ?\n)
-							(insert (if (not (oref repo :homepage)) ""
-												(propertize (oref repo :homepage)
-																		'face '(homepage))) ?\n)))
-					(save-excursion
-						(goto-char start)
-						(let* ((date (or (oref repo :pushed-at) (oref repo :created-at)))
-									 (time (number-to-string (float-time (date-to-time date))))) 
-							(magit-format-log-margin (oref (oref repo :owner) :login) date))))))))
+		(magit-with-section (section repo response title 'nohighlight 'collapse)
+			(dolist (repo (oref response :data)) 
+				(insert (propertize (oref repo :homepage) 
+														'face '(magit-gh-repos-name-face))
+								?\n)
+				(magit-with-section (section section nil 'nohighlight 'collapse)
+					(insert (if (not (oref repo :description)) ""
+										(propertize (oref repo :description) 
+																'face '(magit-gh-repos-description-face))) ?\n)
+					(insert (if (not (oref repo :homepage)) ""
+										(propertize (oref repo :homepage)
+																'face '(magit-gh-repos-homepage))) ?\n))))))
 
 (defconst api (gh-repos-api "API" :cache t))
 (defun get-repos (&optional username)
