@@ -2,12 +2,6 @@
 (require 'noflet)
 (require 'magit-gh-repos)
 
-(defmacro tests-magit-gh-repos-setup (&rest body)
-  `(noflet ((gh-repos-user-list (&rest args))
-            (gh-repos-api (&rest args)))
-     (let (magit-gh-repos-format)
-       ,@body)))
-
 (defun test-magit-gh-repos-mock (cls &rest args)
   (cl-case cls 
     (gh-api-paged-response
@@ -88,8 +82,7 @@
 (ert-deftest test-magit-gh-repos/username-query ()
   "Should pass optional parameters to `gh-repos-user-list'."
   (catch 'ok
-    (noflet ((gh-repos-api (&rest args))
-             (gh-repos-user-list (a u &rest args)
+    (noflet ((gh-repos-user-list (a u &rest args)
                (cond ((equal u "foobar") (throw 'ok nil))
                      (t (throw 
                             "Requested repos for wrong username.")))))
