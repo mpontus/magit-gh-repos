@@ -29,45 +29,42 @@
 (eval-when-compile
   (require 'names))
 
-(define-derived-mode magit-gh-repos-mode magit-mode "Github Repos"
-  "Major mode for displaying repository listing.")
+(define-derived-mode magit-gh-repos-mode magit-mode "Github Repos")
 
 (defun magit-gh-repos (&optional username switch-function)
+  "Display listing of USERNAME's or your own repos."
   (interactive "MUsername: ")
-  (magit-mode-setup 
-   "*magit-gh-repos*" 
+  (magit-mode-setup "*magit-gh-repos*"
    (or switch-function magit-gh-repos-switch-function)
-   'magit-gh-repos-mode 'magit-gh-repos-load-next-page
-   username))
+   'magit-gh-repos-mode 'magit-gh-repos-load-next-page username))
 
-(define-namespace magit-gh-repos- 
+(define-namespace magit-gh-repos-
 :dont-assume-function-quote
 :package magit-gh-repos
 :group magit-gh-repos
 
-(defcustom list-format '((format "% -10s %s" language full-name) description) "")
+(defcustom list-format
+  '((format "% -10s %s" language full-name) description)
+  "Each form produces repo output line by being evaluated in it's context. ")
 
-(defcustom switch-function 'pop-to-buffer "")
+(defcustom switch-function 'pop-to-buffer
+  "Function used to display buffer with repo listing.")
 
-(defun display-repo (repo)
+(defun load-next-page (username)
+  (let ((response (gh-repos-user-list
+                   (gh-repos-api "api" :cache t) username)))
+    (magit-with-section (section section nil)
+      (let ((ewoc (ewoc-create
+                   #'magit-gh-repos-pretty-printer nil nil 'nosep)))
+        (dolist (repo (oref response :data))
+          (ewoc-enter-last ewoc repo))))))
+
+(defun pretty-printer (repo)
   (magit-with-section (section section nil)
     (let ((bindings (mapcar (lambda (s) (cons s (slot-value repo s)))
                             (object-slots repo))))
       (dolist (line list-format)
-        (insert (or (eval line bindings) "") ?\n)))))
-
-(defun display-list (repos)
-  (magit-with-section (section section nil)
-    (let ((ewoc (ewoc-create #'magit-gh-repos-display-repo nil nil 'nosep)))
-      (dolist (repo repos) (ewoc-enter-last ewoc repo)))))
-
-(defun load-next-page (username) 
-  (let ((response (gh-repos-user-list (gh-repos-api "api" :cache t)
-                   username)))
-    (display-list (oref response :data)))))
+        (insert (or (eval line bindings) "") ?\n))))))
 
 (provide 'magit-gh-repos)
-;; Local Variables:
-;; lisp-indent-function: lisp-indent-function
-;; End:
 ;;; magit-gh-repos.el ends here

@@ -45,7 +45,8 @@
     (magit-gh-repos-display-list
      (list (test-magit-gh-repos-mock 'gh-repos-repo :name "foo")
            (test-magit-gh-repos-mock 'gh-repos-repo :name "bar")))
-    (should (= 2 (length (magit-section-children magit-root-section))))))
+    (should (= 2 (length 
+                  (magit-section-children magit-root-section))))))
 
 (ert-deftest tests-magit-gh-repos/ewoc ()
   "Should record printer offsets into EWOC object."
@@ -53,11 +54,13 @@
     (catch 'ok
       (noflet ((ewoc-create (pp &rest args) 
                  (cond ((not ewoc-created) (setq ewoc-created t))
-                       (t (throw 'fail "`ewoc-create' called twice"))))
+                       (t (throw 'fail 
+                            "`ewoc-create' called twice"))))
                (ewoc-enter-last (ew nd &rest args)
                  (cond (node-added (throw 'ok nil))
                        (ewoc-created (setq node-added 1))
-                       (t (throw 'fail "`ewoc-created' was not called")))))
+                       (t (throw 'fail 
+                            "`ewoc-created' was not called")))))
         (magit-gh-repos-display-list 
          (list (test-magit-gh-repos-mock 'gh-repos-repo)
                (test-magit-gh-repos-mock 'gh-repos-repo)))))))
@@ -78,7 +81,8 @@
   (noflet ((another-fn (x &rest args) (throw 'ok nil)))
     (let ((magit-gh-repos-switch-function 'another-fn))
       (catch 'ok (magit-gh-repos nil 'another-fn)
-             (throw 'fail "Did not call configured switch-function")))))
+             (throw 'fail 
+               "Did not call configured switch-function")))))
 
 (ert-deftest test-magit-gh-repos/username-query ()
   "Should pass optional parameters to `gh-repos-user-list'."
@@ -86,11 +90,12 @@
     (noflet ((gh-repos-api (&rest args))
              (gh-repos-user-list (a u &rest args)
                (cond ((equal u "foobar") (throw 'ok nil))
-                     p(t (throw "Requested repos for wrong username.")))))
+                     (t (throw 
+                            "Requested repos for wrong username.")))))
       (magit-gh-repos "foobar")
       (throw 'fail "Did not request repos for any username."))))
 
-(ert-deftest test-magit-gh-respos/interactive ()
+(ert-deftest test-magit-gh-repos/interactive ()
   "Should be interactive and username with prefix-arg."
   (catch 'ok
     (noflet ((gh-repos-user-list (api username &rest args)
