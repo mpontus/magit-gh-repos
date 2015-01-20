@@ -10,6 +10,9 @@
                   (test-magit-gh-repos-mock 'gh-repos-repo)) args))
     (t (apply 'make-instance cls args))))
 
+
+;; UI / Magit Interface
+
 (ert-deftest tests-magit-gh-repos/configurable ()
   "Should format repo output through evaluation of configured forms."
   (let ((magit-gh-repos-list-format
@@ -104,4 +107,30 @@
                (cond ((not username) (throw 'ok nil))
                      (t (throw 'fail "Username was not a nil.")))))
       (magit-gh-repos ""))))
+
+
+;; Basic functions
+
+(ert-deftest test-magit-gh-repos/create () 
+  (catch 'ok
+    (noflet ((gh-repos-repo-new (api repo)
+               (cond ((string= "new" (oref repo :name)) (throw 'ok nil))
+                     (t (throw 'fail "Wrong repo was created.")))))
+      (magit-gh-repos-create "new")
+      (throw 'fail "Did not create a repo."))))
+
+(ert-deftest test-magit-gh-repos/delete () 
+  (catch 'ok
+    (noflet ((gh-repos-repo-delete (api repo-id)
+               (cond ((string= "old" repo-id) (throw 'ok nil))
+                     (t (throw 'fail "Wrong repo was deleted.")))))
+      (magit-gh-repos-delete "old")
+      (throw 'fail "Did not delete a repo."))))
+
+
+
+
+
+
+
 

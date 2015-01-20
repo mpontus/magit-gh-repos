@@ -53,7 +53,7 @@
 
 (defun load-next-page (username)
   (let ((response (gh-repos-user-list
-                   (gh-repos-api "api" :cache t) username)))
+                   (gh-repos-api "api") username)))
     (magit-with-section (section section nil)
       (let ((ewoc (ewoc-create
                    #'magit-gh-repos-pretty-printer nil nil 'nosep)))
@@ -65,7 +65,21 @@
     (let ((bindings (mapcar (lambda (s) (cons s (slot-value repo s)))
                             (object-slots repo))))
       (dolist (line list-format)
-        (insert (or (eval line bindings) "") ?\n))))))
+        (insert (or (eval line bindings) "") ?\n)))))
+
+(defun create (name)
+  (interactive "MCreate new repo: ")
+  (let* ((repo (gh-repos-repo "repo" :name name))
+         (response (gh-repos-repo-new
+                    (gh-repos-api "api") repo)))
+    (oref response :data)))
+
+(defun delete (name)
+  (interactive "MDelete new repo: ")
+  (let* ((repo (gh-repos-repo "repo" :name name))
+         (response (gh-repos-repo-delete
+                    (gh-repos-api "api") name)))
+    (oref response :data))))
 
 (provide 'magit-gh-repos)
 ;;; magit-gh-repos.el ends here
