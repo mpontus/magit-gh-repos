@@ -20,7 +20,7 @@
   "Should format repo output through evaluation of configured forms."
   (let ((magit-gh-repos-list-format
          '((format "%-4s%s" name language) description))) 
-    (magit-gh-repos-display-repo 
+    (magit-gh-repos-pretty-printer 
      (test-magit-gh-repos-mock 'gh-repos-repo 
                                :name "foo"
                                :language "bar"
@@ -33,18 +33,18 @@
   "Listing should have at least one section."
   (let (magit-root-section)
     (should-not magit-root-section)
-    (noflet ((magit-gh-repos-display-repo (repo &rest args)))
-      (magit-gh-repos-display-list 
-       (list (test-magit-gh-repos-mock 'gh-repos-repo)
-             (test-magit-gh-repos-mock 'gh-repos-repo))))
+    (noflet ((gh-repos-user-list (&rest args)
+               (test-magit-gh-repos-mock 'gh-api-paged-response))
+             (magit-gh-repos-pretty-printer (&rest args)))
+      (magit-gh-repos-load-next-page nil))
     (should (magit-section-p magit-root-section))))
 
 (ert-deftest tests-magit-gh-repos/repo-sections ()
   "Repos should have a section of their own."
   (let ((magit-gh-repos-list-format '(name)) magit-root-section)
-    (magit-gh-repos-display-list
-     (list (test-magit-gh-repos-mock 'gh-repos-repo :name "foo")
-           (test-magit-gh-repos-mock 'gh-repos-repo :name "bar")))
+    (noflet ((gh-repos-user-list (&rest args)
+               (test-magit-gh-repos-mock 'gh-api-paged-response)))
+      (magit-gh-repos-load-next-page nil))
     (should (= 2 (length 
                   (magit-section-children magit-root-section))))))
 
@@ -52,7 +52,10 @@
   "Should record printer offsets into EWOC object."
   (let (ewoc-created node-added) 
     (catch 'ok
-      (noflet ((ewoc-create (pp &rest args) 
+      (noflet ((gh-repos-user-list (&rest args)
+                 (test-magit-gh-repos-mock 'gh-api-paged-response))
+               (magit-gh-repos-pretty-printer (&rest args))
+               (ewoc-create (pp &rest args) 
                  (cond ((not ewoc-created) (setq ewoc-created t))
                        (t (throw 'fail 
                             "`ewoc-create' called twice"))))
@@ -61,9 +64,7 @@
                        (ewoc-created (setq node-added 1))
                        (t (throw 'fail 
                             "`ewoc-created' was not called")))))
-        (magit-gh-repos-display-list 
-         (list (test-magit-gh-repos-mock 'gh-repos-repo)
-               (test-magit-gh-repos-mock 'gh-repos-repo)))))))
+        (magit-gh-repos-load-next-page nil)))))
 
 (ert-deftest tests-magit-gh-repos/magit-setup ()
   "Should let magit to set up the buffer."
@@ -96,10 +97,18 @@
       (throw 'fail "Did not request repos for any username."))))
 
 (ert-deftest test-magit-gh-repos/interactive ()
-  "Should be interactive and username with prefix-arg."
+  "Should be able to accept username through interactive input."
   (catch 'ok
     (noflet ((gh-repos-user-list (api username &rest args)
                (cond ((string= "foobar" username) (throw 'ok nil))
                      (t (throw 'fail "Input was not processed.")))))
       (magit-gh-repos "foobar"))))
+
+(ert-deftest test-magit-gh-repos/interactive-2 ()
+  "Should reset empty username to nil before sending it to the API."
+  (catch 'ok
+    (noflet ((gh-repos-user-list (api username &rest args)
+               (cond ((not username) (throw 'ok nil))
+                     (t (throw 'fail "Username was not a nil.")))))
+      (magit-gh-repos ""))))
 

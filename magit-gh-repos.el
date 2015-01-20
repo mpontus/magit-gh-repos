@@ -36,7 +36,8 @@
   (interactive "MUsername: ")
   (magit-mode-setup "*magit-gh-repos*"
    (or switch-function magit-gh-repos-switch-function)
-   'magit-gh-repos-mode 'magit-gh-repos-load-next-page username))
+   'magit-gh-repos-mode 'magit-gh-repos-load-next-page 
+   (if (string= "" username) nil username)))
 
 (define-namespace magit-gh-repos-
 :dont-assume-function-quote
