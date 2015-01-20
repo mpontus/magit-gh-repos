@@ -3,8 +3,8 @@
 (require 'magit-gh-repos)
 
 (defmacro tests-magit-gh-repos-setup (&rest body)
-  `(noflet ((gh-repos-user-list ())
-            (gh-repos-api ()))
+  `(noflet ((gh-repos-user-list (&rest args))
+            (gh-repos-api (&rest args)))
      (let (magit-gh-repos-format)
        ,@body)))
 
@@ -33,7 +33,7 @@
   "Listing should have at least one section."
   (let (magit-root-section)
     (should-not magit-root-section)
-    (noflet ((magit-gh-repos-display-repo (repo)))
+    (noflet ((magit-gh-repos-display-repo (repo &rest args)))
       (magit-gh-repos-display-list 
        (list (test-magit-gh-repos-mock 'gh-repos-repo)
              (test-magit-gh-repos-mock 'gh-repos-repo))))
@@ -51,10 +51,10 @@
   "Should record printer offsets into EWOC object."
   (let (ewoc-created node-added) 
     (catch 'ok
-      (noflet ((ewoc-create (pp) 
+      (noflet ((ewoc-create (pp &rest args) 
                  (cond ((not ewoc-created) (setq ewoc-created t))
                        (t (throw 'fail "`ewoc-create' called twice"))))
-               (ewoc-enter-last (ew nd)
+               (ewoc-enter-last (ew nd &rest args)
                  (cond (node-added (throw 'ok nil))
                        (ewoc-created (setq node-added 1))
                        (t (throw 'fail "`ewoc-created' was not called")))))
@@ -72,10 +72,10 @@
 
 (ert-deftest tests-magit-gh-repos/switch-function ()
   "Should use magit config and allow passing as argument."
-  (noflet ((show-buffer-fn (x) (throw 'ok nil)))
+  (noflet ((show-buffer-fn (x &rest args) (throw 'ok nil)))
     (catch 'ok (magit-gh-repos nil 'show-buffer-fn)
            (throw 'fail "did not call specified switch-function")))
-  (noflet ((another-fn (x) (throw 'ok nil)))
+  (noflet ((another-fn (x &rest args) (throw 'ok nil)))
     (let ((magit-gh-repos-switch-function 'another-fn))
       (catch 'ok (magit-gh-repos nil 'another-fn)
              (throw 'fail "Did not call configured switch-function")))))
@@ -84,7 +84,7 @@
   "Should pass optional parameters to `gh-repos-user-list'."
   (catch 'ok
     (noflet ((gh-repos-api (&rest args))
-             (gh-repos-user-list (a u)
+             (gh-repos-user-list (a u &rest args)
                (cond ((equal u "foobar") (throw 'ok nil))
                      p(t (throw "Requested repos for wrong username.")))))
       (magit-gh-repos "foobar")
@@ -93,8 +93,8 @@
 (ert-deftest test-magit-gh-respos/interactive ()
   "Should be interactive and username with prefix-arg."
   (catch 'ok
-    (noflet ((read-string (prompt &rest args) 
-               (throw 'ok nil))
-             (gh-repos-user-list nil) )
-      (call-interactively 'magit-gh-repos)
-      (throw 'fail "Did not call `read-string'."))))
+    (noflet ((gh-repos-user-list (api username &rest args)
+               (cond ((string= "foobar" username) (throw 'ok nil))
+                     (t (throw 'fail "Input was not processed.")))))
+      (magit-gh-repos "foobar"))))
+

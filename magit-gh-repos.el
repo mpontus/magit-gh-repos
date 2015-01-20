@@ -33,12 +33,11 @@
   "Major mode for displaying repository listing.")
 
 (defun magit-gh-repos (&optional username switch-function)
-  (interactive)
-  (magit-mode-setup
+  (interactive "MUsername: ")
+  (magit-mode-setup 
    "*magit-gh-repos*" 
    (or switch-function magit-gh-repos-switch-function)
-   'magit-gh-repos-mode
-   'magit-gh-repos-load-next-page
+   'magit-gh-repos-mode 'magit-gh-repos-load-next-page
    username))
 
 (define-namespace magit-gh-repos- 
@@ -59,12 +58,11 @@
 
 (defun display-list (repos)
   (magit-with-section (section section nil)
-    (let ((ewoc (ewoc-create #'magit-gh-repos-display-repo)))
+    (let ((ewoc (ewoc-create #'magit-gh-repos-display-repo nil nil 'nosep)))
       (dolist (repo repos) (ewoc-enter-last ewoc repo)))))
 
 (defun load-next-page (username) 
-  (let ((response (gh-repos-user-list 
-                   (gh-repos-api "api" :sync nil)
+  (let ((response (gh-repos-user-list (gh-repos-api "api" :cache t)
                    username)))
     (display-list (oref response :data)))))
 
