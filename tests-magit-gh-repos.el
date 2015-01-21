@@ -2,14 +2,16 @@
 (require 'noflet)
 (require 'magit-gh-repos)
 
-(defun test-magit-gh-repos-mock (cls &rest args)
-  (cl-case cls 
-    (gh-api-paged-response
-     (apply 'make-instance cls :data
-            (list (test-magit-gh-repos-mock 'gh-repos-repo)
-                  (test-magit-gh-repos-mock 'gh-repos-repo)) args))
-    (t (apply 'make-instance cls args))))
-
+(defmacro test-response (m &rest p)
+  ;; (test-response () :http-status 404)
+  ;; (test-response (:name 1 :language 3) :http-status 404)
+  ;; (test-response ((:name 1 :language 3) (:description 4)) :http-status 404)
+  `(gh-api-paged-response 
+    "resp" ,@p
+    ,@(when m `(:data ,(if (consp (car m)) 
+                           (cons 'list 
+                                 (mapcar (lambda (m) `(gh-repos-repo "repo" ,@m)) m))
+                           `(gh-repos-repo "repo" ,@m))))))
 
 ;; UI / Magit Interface
 
@@ -125,12 +127,33 @@
                (cond ((string= "old" repo-id) (throw 'ok nil))
                      (t (throw 'fail "Wrong repo was deleted.")))))
       (magit-gh-repos-delete "old")
-      (throw 'fail "Did not delete a repo."))))
+      (throw 'fail "Did not delete a repo.")))) 
+
+(ert-deftest test-magit-gh-repos/remote ()
+  "Test that repos can be attached as remotes."
+  (catch 'ok
+    (noflet ((magit-add-remote (remote url)
+               (cond ((string= "http://github.com/" url) (throw 'ok nil))
+                     (t (throw "Unexpected repo was added."))))
+             (gh-repos-repo-get (api name &rest args)
+               (test-response (:clone-url "http://github.com/"))))
+      (magit-gh-repos-remote "foobar")
+      (throw 'fail "Remote wasn't added."))))
 
 
-
-
-
-
-
+(ert-deftest test-magit-gh-repos/remote-remove ()
+  "Test that deleting a repo will remove it as remote."
+  ;; It doesn't make sense to focus on manual invocation of this method.
+  (catch 'ok 
+    (noflet ((gh-repos-repo-get (api name &rest args)
+               (test-response (:clone-url "http://github.com/")))
+             (gh-repos-repo-delete (&rest args)
+               (test-response () :http-status 204))
+             (magit-gh-repos-get-remotes (url &rest args)
+               '("github" . "http://github.com/"))
+             (magit-remove-remote (remote &rest args) 
+               (cond ((string= "github" remote) (throw 'ok nil))
+                     (t (throw "Wrong remote for removal.")))))
+      (magit-gh-repos-delete "foo"))
+    (throw 'fail "Deleted repo was not removed from remotes.")))
 

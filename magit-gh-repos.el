@@ -35,9 +35,9 @@
   "Display listing of USERNAME's or your own repos."
   (interactive "MUsername: ")
   (magit-mode-setup "*magit-gh-repos*"
-   (or switch-function magit-gh-repos-switch-function)
-   'magit-gh-repos-mode 'magit-gh-repos-load-next-page 
-   (if (string= "" username) nil username)))
+                    (or switch-function magit-gh-repos-switch-function)
+                    'magit-gh-repos-mode 'magit-gh-repos-load-next-page 
+                    (if (string= "" username) nil username)))
 
 (define-namespace magit-gh-repos-
 :dont-assume-function-quote
@@ -76,10 +76,30 @@
 
 (defun delete (name)
   (interactive "MDelete new repo: ")
-  (let* ((repo (gh-repos-repo "repo" :name name))
-         (response (gh-repos-repo-delete
-                    (gh-repos-api "api") name)))
-    (oref response :data))))
+  (let* ((response (gh-repos-repo-get (gh-repos-api "api") name))
+         (repo-url  (oref (oref response :data) :clone-url)))
+    (let ((response (gh-repos-repo-delete (gh-repos-api "api") name)))
+      (when (= 204 (oref response :http-status))
+        (let ((remote (get-remotes repo-url)))
+          (and remote (magit-remove-remote (car remote))))))))
+
+(defun get-remotes (&optional url)
+  "When URL is specified returns matching alist entry.
+Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
+  (let* ((lines (magit-git-lines "remote" "-v"))
+         (chunks (mapcar 'split-string lines))
+         (alist (mapcar 'butlast chunks)))
+    (mapc (lambda (c) (setcdr c (cadr c)))
+          (delete-duplicates alist))
+    (if url (rassoc url alist) alist)))
+
+(defun remote (name)
+  (interactive "MAdd repo as remote:")
+  (let* ((response (gh-repos-repo-get 
+                    (gh-repos-api "api") name))
+         (repo (oref response :data))
+         (url (oref repo :clone-url)))
+    (magit-add-remote "origin" url))))
 
 (provide 'magit-gh-repos)
 ;;; magit-gh-repos.el ends here
