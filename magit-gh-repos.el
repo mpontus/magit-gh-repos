@@ -44,31 +44,32 @@
 :package magit-gh-repos
 :group magit-gh-repos
 
-(defcustom list-format
-  '((format "% -10s %s" language full-name) description)
-  "Each form produces repo output line by being evaluated in it's context. ")
-
-(defcustom switch-function 'pop-to-buffer
-  "Function used to display buffer with repo listing.")
+(defconst api (gh-repos-api "*api*"))
 
 (defcustom delete-remotes nil
   "Should we delete remotes left after deleting repo.")
 
-(defun load-next-page (username)
-  (let ((response (gh-repos-user-list
-                   (gh-repos-api "api") username)))
-    (magit-with-section (section section nil)
-      (let ((ewoc (ewoc-create
-                   #'magit-gh-repos-pretty-printer nil nil 'nosep)))
-        (dolist (repo (oref response :data))
-          (ewoc-enter-last ewoc repo))))))
+(defcustom switch-function 'pop-to-buffer
+  "Function used to display buffer with repo listing.")
 
-(defun pretty-printer (repo)
-  (magit-with-section (section section nil)
-    (let ((bindings (mapcar (lambda (s) (cons s (slot-value repo s)))
-                            (object-slots repo))))
-      (dolist (line list-format)
-        (insert (or (eval line bindings) "") ?\n)))))
+(defcustom formatters '(full-name desription last-updated)
+  "Each form produces descendant section in repo output. ")
+
+(defun load-next-page (username)
+  (let ((response (gh-repos-user-list api username)))
+    (draw-page (oref response :data))))
+
+(defun draw-page (entries)
+  (let* ((printer #'magit-gh-repos-draw-entry)
+         (ewoc (ewoc-create printer nil nil 'nosep)))
+    (mapc (apply-partially 'ewoc-enter-last ewoc) entries)))
+
+(defun draw-entry (entry)
+  (let ((context (mapcar (lambda (s) (cons s (slot-value entry s)))
+                         (object-slots entry)))) 
+    (dolist (form formatters)
+      (magit-with-section (section section)
+        (insert (eval form context) ?\n)))))
 
 (defun create-repo (name)
   (interactive "MCreate new repo: ")
