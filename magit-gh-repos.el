@@ -51,6 +51,9 @@
 (defcustom switch-function 'pop-to-buffer
   "Function used to display buffer with repo listing.")
 
+(defcustom delete-remotes nil
+  "Should we delete remotes left after deleting repo.")
+
 (defun load-next-page (username)
   (let ((response (gh-repos-user-list
                    (gh-repos-api "api") username)))
@@ -77,11 +80,14 @@
 (defun delete-repo (name)
   (interactive "MDelete repo: ")
   (let* ((response (gh-repos-repo-get (gh-repos-api "api") name))
-         (repo-url  (oref (oref response :data) :clone-url)))
-    (let ((response (gh-repos-repo-delete (gh-repos-api "api") name)))
-      (when (= 204 (oref response :http-status))
-        (let ((remote (get-remotes repo-url)))
-          (and remote (magit-remove-remote (car remote))))))))
+         (repo-url  (oref (oref response :data) :clone-url))
+         (response (gh-repos-repo-delete (gh-repos-api "api") name)))
+    (unless (= 204 (oref response :http-status))
+      (user-error "There was a problem deleting the repo"))
+    (when delete-remotes 
+      (let ((remote (get-remotes repo-url)))
+        (when remote 
+          (magit-remove-remote (car remote)))))))
 
 (defun get-remotes (&optional url)
   "When URL is specified returns matching alist entry.
