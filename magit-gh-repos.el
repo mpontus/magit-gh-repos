@@ -67,15 +67,15 @@
       (dolist (line list-format)
         (insert (or (eval line bindings) "") ?\n)))))
 
-(defun create (name)
+(defun create-repo (name)
   (interactive "MCreate new repo: ")
   (let* ((repo (gh-repos-repo "repo" :name name))
          (response (gh-repos-repo-new
                     (gh-repos-api "api") repo)))
     (oref response :data)))
 
-(defun delete (name)
-  (interactive "MDelete new repo: ")
+(defun delete-repo (name)
+  (interactive "MDelete repo: ")
   (let* ((response (gh-repos-repo-get (gh-repos-api "api") name))
          (repo-url  (oref (oref response :data) :clone-url)))
     (let ((response (gh-repos-repo-delete (gh-repos-api "api") name)))
@@ -93,8 +93,8 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
           (delete-duplicates alist))
     (if url (rassoc url alist) alist)))
 
-(defun remote (name)
-  (interactive "MAdd repo as remote:")
+(defun remote-add (name)
+  (interactive "MAdd remote to repo: ")
   (let* ((response (gh-repos-repo-get 
                     (gh-repos-api "api") name))
          (repo (oref response :data))

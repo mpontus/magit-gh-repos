@@ -100,15 +100,17 @@
     (noflet ((gh-repos-user-list (api username &rest args)
                (cond ((string= "foobar" username) (throw 'ok nil))
                      (t (throw 'fail "Input was not processed.")))))
-      (magit-gh-repos "foobar"))))
+      (magit-gh-repos "foobar")
+      (throw 'fail "Did not contact the API."))))
 
 (ert-deftest test-magit-gh-repos/interactive-2 ()
-  "Should reset empty username to nil before sending it to the API."
+  "Should not pass empty string to API as username.."
   (catch 'ok
     (noflet ((gh-repos-user-list (api username &rest args)
                (cond ((not username) (throw 'ok nil))
                      (t (throw 'fail "Username was not a nil.")))))
-      (magit-gh-repos ""))))
+      (magit-gh-repos "")
+      (throw 'fail "Did not contact the API."))))
 
 
 ;; Basic functions
