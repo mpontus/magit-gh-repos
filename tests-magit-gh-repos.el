@@ -115,23 +115,24 @@
 
 ;; Basic functions
 
-(ert-deftest test-magit-gh-repos/create () 
+(ert-deftest test-magit-gh-repos/create-repo () 
   (catch 'ok
     (noflet ((gh-repos-repo-new (api repo)
                (cond ((string= "new" (oref repo :name)) (throw 'ok nil))
                      (t (throw 'fail "Wrong repo was created.")))))
-      (magit-gh-repos-create "new")
+      (magit-gh-repos-create-repo "new")
       (throw 'fail "Did not create a repo."))))
 
-(ert-deftest test-magit-gh-repos/delete () 
+(ert-deftest test-magit-gh-repos/delete-repo () 
   (catch 'ok
-    (noflet ((gh-repos-repo-delete (api repo-id)
+    (noflet ((gh-api-authenticated-request (&rest args))
+             (gh-repos-repo-delete-repo (api repo-id)
                (cond ((string= "old" repo-id) (throw 'ok nil))
                      (t (throw 'fail "Wrong repo was deleted.")))))
-      (magit-gh-repos-delete "old")
+      (magit-gh-repos-delete-repo "old")
       (throw 'fail "Did not delete a repo.")))) 
 
-(ert-deftest test-magit-gh-repos/remote ()
+(ert-deftest test-magit-gh-repos/remote-add ()
   "Test that repos can be attached as remotes."
   (catch 'ok
     (noflet ((magit-add-remote (remote url)
@@ -139,23 +140,23 @@
                      (t (throw "Unexpected repo was added."))))
              (gh-repos-repo-get (api name &rest args)
                (test-response (:clone-url "http://github.com/"))))
-      (magit-gh-repos-remote "foobar")
+      (magit-gh-repos-remote-add "foobar")
       (throw 'fail "Remote wasn't added."))))
 
 
-(ert-deftest test-magit-gh-repos/remote-remove ()
+(ert-deftest test-magit-gh-repos/remote-add-remove ()
   "Test that deleting a repo will remove it as remote."
   ;; It doesn't make sense to focus on manual invocation of this method.
-  (catch 'ok 
-    (noflet ((gh-repos-repo-get (api name &rest args)
-               (test-response (:clone-url "http://github.com/")))
-             (gh-repos-repo-delete (&rest args)
-               (test-response () :http-status 204))
-             (magit-gh-repos-get-remotes (url &rest args)
-               '("github" . "http://github.com/"))
-             (magit-remove-remote (remote &rest args) 
-               (cond ((string= "github" remote) (throw 'ok nil))
-                     (t (throw "Wrong remote for removal.")))))
-      (magit-gh-repos-delete "foo"))
-    (throw 'fail "Deleted repo was not removed from remotes.")))
+  (noflet ((gh-repos-repo-get (api name &rest args)
+             (test-response (:clone-url "http://github.com/")))
+           (gh-repos-repo-delete-repo (&rest args)
+             (test-response () :http-status 204))
+           (magit-gh-repos-get-remote-adds (url &rest args)
+             '("github" . "http://github.com/"))
+           (magit-remove-remote-add (remote &rest args) 
+             (cond ((string= "github" remote) (throw 'ok nil))
+                   (t (throw "Wrong remote for removal.")))))
+    (catch 'ok (magit-gh-repos-delete-repo "foo")
+           (throw 'fail
+             "Deleted repo was not removed from remotes."))))
 
