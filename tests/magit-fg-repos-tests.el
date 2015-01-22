@@ -15,6 +15,7 @@
            ;; (magit-gh-repos-load-next-page "bar")
            (throw 'fail "EWOC haven't received any entries!")))) ;
 
+
 (ert-deftest tests-magit-gh-repos/configurable ()
   "Should insert result of evaluation as section's content."
   (let ((magit-gh-repos-formatters 
@@ -25,6 +26,55 @@
     (let ((string (buffer-substring-no-properties
                    (point-min) (point-max))))
       (should (equal "bar foo\n" string)))))  
+
+(ert-deftest tests-magit-gh-repos/root-section ()
+  "Listing should produce root magit section."
+  (magit-gh-repos-draw-page 
+   (list (gh-repos-repo "repo" :name "foo")))
+  (should magit-root-section))
+
+(ert-deftest tests-magit-gh-repos/entry-section ()
+  "Each entry should wrap its' output into maigt section"
+  (let ((magit-gh-repos--formatting '(name))) 
+    (magit-gh-repos-draw-entry 
+     (gh-repos-repo "repo" :name "foo")))
+  (should (= 1 (length (magit-section-children
+                        magit-root-section)))))
+
+(ert-deftest tests-magit-gh-repos/list-sections ()
+  "Listing should have at least one section."
+  (let ((magit-gh-repos-formatters '(name))
+        magit-root-section)
+    (should-not magit-root-section)
+    (noflet ((gh-repos-user-list (&rest args)
+               (test-response ((:name "Foo") (:name "Bar")))))
+      (magit-gh-repos-load-next-page "foobar"))
+    (should (magit-section-p magit-root-section))))
+
+;; Todo: Change into Listing > Entry sections
+;; (ert-deftest tests-magit-gh-repos/repo-sections ()
+;;   "Repos should have a section of their own."
+;;   (let ((magit-gh-repos-formatters '(name)) magit-root-section)
+;;     (magit-gh-repos-draw-page (list (gh-repos-repo "repo" :name "foo")))
+;;     (should (= 1 (length (magit-section-children magit-root-section))))))
+
+;; (ert-deftest tests-magit-gh-repos/configurable ()
+;;   "Should insert result of evaluation as section's content."
+;;   (let ((magit-gh-repos-formatters '((format "%-4s%s" language name)))) 
+;;     (magit-gh-repos-draw-entry
+;;      (gh-repos-repo "repo" :name "foo" :language "bar" :description "baz"))
+;;     (let ((string (buffer-substring-no-properties (point-min) (point-max))))
+;;       (should (equal "bar foo\n" string)))))  
+
+(ert-deftest tests-magit-gh-repos/list-sections ()
+  "Listing should have at least one section."
+  (let ((magit-gh-repos-formatters '(name))
+        magit-root-section)
+    (should-not magit-root-section)
+    (noflet ((gh-repos-user-list (&rest args)
+               (test-response ((:name "Foo") (:name "Bar")))))
+      (magit-gh-repos-load-next-page "foobar"))
+    (should (magit-section-p magit-root-section))))
 
 (ert-deftest tests-magit-gh-repos/magit-setup ()
   "Should let magit to set up the buffer."
@@ -77,6 +127,8 @@
     (catch 'ok (magit-gh-repos-create-repo "new")
            (throw 'fail "Did not create a repo.")))) ;
 
+
+
 (ert-deftest test-magit-gh-repos/delete-repo () 
   (noflet ((gh-repos-repo-get (&rest args)
              (test-response (:name "old")))
@@ -86,16 +138,7 @@
     (catch 'okq (magit-gh-repos-delete-repo "old")
            (throw 'fail "Did not delete a repo.")))) 
 
-(ert-deftest test-magit-gh-repos/add-remote ()
-  "Test that repos can be attached as remotes."
-  (noflet ((magit-add-remote (remote url)
-             (cond ((string= "http://github.com/" url) 
-                    (throw 'ok nil))
-                   (t (throw "Unexpected repo was added."))))
-           (gh-repos-repo-get (api name &rest args)
-             (test-response (:clone-url "http://github.com/"))))
-    (catch 'ok (magit-gh-repos-add-remote "foobar")
-           (throw 'fail "Remote wasn't added."))))
+(throw 'fail "Remote wasn't added."))))
 
 (ert-deftest test-magit-gh-repos/remote-remove ()
   "Test that deleting a repo will remove it as remote."
@@ -112,4 +155,62 @@
       (catch 'ok (magit-gh-repos-delete-repo "foo")
              (throw 'fail
                "Deleted repo was not removed from remotes.")))))
+
+(noflet ((magit-gh-repos-get-remotes (&optional url))
+         (gh-repos-repo-get (api name &rest args)
+           (test-response (:clone-url "http://github.com/")))
+         (magit-add-remote (remote url)
+           (cond ((string= "http://github.com/" url) (throw 'ok nil))
+                 (t (throw 'fail "Unexpected repo was added.")))))
+  (catch 'ok (magit-gh-repos-add-remote "foobar")
+         (throw 'error "Did not submit repo to magit!"))))
+
+(ert-deftest test-magit-gh-repos/add-remote-1 ()
+  "Test that when adding remote when origin is occupied user will be asked."
+  (noflet ((gh-repos-repo-get (api name &rest args)
+             (test-response (:clone-url "http://github.com/")))
+           (magit-gh-repos-get-remotes (&optional url)
+             '(("origin" . "http://google.com")))
+           (magit-completing-read (&rest args) "alternative")
+           (magit-add-remote (remote url)
+             (cond ((and (string= "http://github.com/" url)
+                         (string= "alternative" remote)) (throw 'ok nil))
+                   (t (throw 'fail "Unexpected repo was added.")))))
+    (catch 'ok (magit-gh-repos-add-remote "foobar")
+           (throw 'error "Did not submit repo to magit!"))))
+
+(ert-deftest test-magit-gh-repos/add-remote-2 ()
+  "Test ignoring duplicates."
+  (noflet ((gh-repos-repo-get (api name &rest args)
+             (test-response (:clone-url "http://github.com/")))
+           (magit-gh-repos-get-remotes (&optional url)
+             '(("whatever" . "http://github.com/")))
+           (magit-add-remote (remote url)
+             (throw 'fail "Should not add duplicates.")))
+    (magit-gh-repos-add-remote "foobar")))
+
+(noflet ((magit-add-remote (remote url)
+           (cond ((string= "http://github.com/" url) (throw 'ok nil))
+                 (t (throw "Unexpected repo was added."))))
+         (gh-repos-repo-get (api name &rest args)
+           (test-response (:clone-url "http://github.com/"))))
+  (catch 'ok (magit-gh-repos-remote-add "foobar")
+         (throw 'fail "Remote wasn't added."))))
+
+(ert-deftest test-magit-gh-repos/remote-remove ()
+  "Test that deleting a repo will remove it as remote."
+  (let ((magit-gh-repos-delete-remotes t))
+    (noflet ( (gh-repos-repo-get (api name &rest args)
+                (test-response (:clone-url "http://github.com/")))
+             (gh-repos-repo-delete (&rest args)
+               (test-response () :http-status 204))
+              (magit-gh-repos-get-remotes (url &rest args)
+                '("github" . "http://github.com/"))
+              (magit-remove-remote (remote &rest args) 
+                (cond ((string= "github" remote) (throw 'ok nil)r)
+                      (t (throw "Wrong remote for removal.")))))
+      (catch 'ok (magit-gh-repos-delete-repo "foo")
+             (throw 'fail
+               "Deleted repo was not removed from remotes.")))))
+
 
