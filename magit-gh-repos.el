@@ -1,9 +1,11 @@
-;;; magit-gh-repos.el --- Github repo management commands.  -*- lexical-binding: t; -*-
+;;; magit-gh-repos.el --- Manage Github repositories with magit interface.                           -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2015  Michael Pontus
 
-;; Author: Michael Pontus;;; magit-gh-repos.el --- Manage github repositories from magit  -*- lexical-binding: t; -*- <m.pontus@gmail.com>
-;; Keywords: vc
+;; Author: Michael Pontus <m.pontus@gmail.com>
+;; Keywords:
+;; Version: 0.1
+;; Package-Requires: ((magit "1.2.2") (gh "0.8.2") (names 0.5"))
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -20,6 +22,8 @@
 
 ;;; Commentary:
 
+;; 
+
 ;;; Code:
 
 (require 'ewoc)
@@ -35,8 +39,10 @@
   "Display listing of USERNAME's or your own repos."
   (interactive "MUsername: ")
   (magit-mode-setup "*magit-gh-repos*"
-                    (or switch-function magit-gh-repos-switch-function)
-                    'magit-gh-repos-mode 'magit-gh-repos-load-next-page 
+                    (or switch-function
+                        magit-gh-repos-switch-function)
+                    'magit-gh-repos-mode
+                    'magit-gh-repos-load-next-page 
                     (if (string= "" username) nil username)))
 
 (define-namespace magit-gh-repos-
@@ -100,13 +106,23 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
           (delete-duplicates alist))
     (if url (rassoc url alist) alist)))
 
-(defun remote-add (name)
+(defun get-repo (repo-or-name)
+  (if (gh-repos-repo-p repo-or-name) repo-or-name
+      (oref (gh-repos-repo-get api name) :data)))
+
+(defun add-remote (name)
   (interactive "MAdd remote to repo: ")
-  (let* ((response (gh-repos-repo-get 
-                    (gh-repos-api "api") name))
-         (repo (oref response :data))
+  (let* ((repo (get-repo name))
          (url (oref repo :clone-url)))
-    (magit-add-remote "origin" url))))
+    (magit-add-remote "origin" url)))
+
+(defun fork-repo (name)
+  (interactive "MAdd remote to repo: ")
+  (let* ((repo (get-repo name))
+         (fork (gh-repos-fork api repo)))
+    (add-remote fork))))
 
 (provide 'magit-gh-repos)
+
+
 ;;; magit-gh-repos.el ends here

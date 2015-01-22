@@ -1,6 +1,10 @@
-(require 'ert)
+t(require 'ert)
 (require 'noflet)
 (require 'magit-gh-repos)
+
+(defconst api (make-instance 'gh-api :auth 
+                             (make-instance 'gh-authenticator :username 
+                                            "dummy")))
 
 (defmacro test-response (&optional m &rest p)
   ;; (test-response () :http-status 404)
@@ -10,8 +14,10 @@
     "resp" ,@p
     ,@(when m `(:data ,(if (consp (car m)) 
                            (cons 'list 
-                                 (mapcar (lambda (m) `(gh-repos-repo "repo" ,@m)) m))
-                           `(gh-repos-repo "repo" ,@m))))))
+                                 (mapcar (lambda (m) `(gh-repos-repo-stub "repo" ,@m)) m))
+                         `(gh-repos-repo-stub "repo" ,@m))))))
+
+
 
 ;; 
 ;; 
@@ -27,34 +33,19 @@
            (gh-repos-user-list (&rest args) (test-response))) 
     (catch 'ok (magit-gh-repos-draw-page '("bar"))
            ;; (magit-gh-repos-load-next-page "bar")
-           (throw 'fail "EWOC haven't received any entries!"))))
+           (throw 'fail "EWOC haven't received any entries!")))) ;
 
 
-;; Todo: Change into Listing > Entry sections
-
-;; (ert-deftest tests-magit-gh-repos/repo-sections ()
-;;   "Repos should have a section of their own."
-;;   (let ((magit-gh-repos-formatters '(name)) magit-root-section)
-;;     (magit-gh-repos-draw-page (list (gh-repos-repo "repo" :name "foo")))
-;;     (should (= 1 (length (magit-section-children magit-root-section))))))
-
-;; (ert-deftest tests-magit-gh-repos/configurable ()
-;;   "Should insert result of evaluation as section's content."
-;;   (let ((magit-gh-repos-formatters '((format "%-4s%s" language name)))) 
-;;     (magit-gh-repos-draw-entry
-;;      (gh-repos-repo "repo" :name "foo" :language "bar" :description "baz"))
-;;     (let ((string (buffer-substring-no-properties (point-min) (point-max))))
-;;       (should (equal "bar foo\n" string)))))  
-
-(ert-deftest tests-magit-gh-repos/list-sections ()
-  "Listing should have at least one section."
-  (let ((magit-gh-repos-formatters '(name))
-        magit-root-section)
-    (should-not magit-root-section)
-    (noflet ((gh-repos-user-list (&rest args)
-               (test-response ((:name "Foo") (:name "Bar")))))
-      (magit-gh-repos-load-next-page "foobar"))
-    (should (magit-section-p magit-root-section))))
+(ert-deftest tests-magit-gh-repos/configurable ()
+  "Should insert result of evaluation as section's content."
+  (let ((magit-gh-repos-formatters 
+         '((format "%-4s%s" language name)))) 
+    (magit-gh-repos-draw-entry
+     (gh-repos-repo "repo" :name "foo" :language "bar"
+                    :description "baz"))
+    (let ((string (buffer-substring-no-properties
+                   (point-min) (point-max))))
+      (should (equal "bar foo\n" string)))))  
 
 (ert-deftest tests-magit-gh-repos/magit-setup ()
   "Should let magit to set up the buffer."
@@ -105,7 +96,7 @@
              (cond ((string= "new" (oref repo :name)) (throw 'ok nil))
                    (t (throw 'fail "Wrong repo was created.")))))
     (catch 'ok (magit-gh-repos-create-repo "new")
-           (throw 'fail "Did not create a repo."))))
+           (throw 'fail "Did not create a repo.")))) ;
 
 (ert-deftest test-magit-gh-repos/delete-repo () 
   (noflet ((gh-repos-repo-get (&rest args)
@@ -113,17 +104,18 @@
            (gh-repos-repo-delete (api repo-id)
              (cond ((string= "old" repo-id) (throw 'ok nil))
                    (t (throw 'fail "Wrong repo was deleted.")))))
-    (catch 'ok (magit-gh-repos-delete-repo "old")
+    (catch 'okq (magit-gh-repos-delete-repo "old")
            (throw 'fail "Did not delete a repo.")))) 
 
-(ert-deftest test-magit-gh-repos/remote-add ()
+(ert-deftest test-magit-gh-repos/add-remote ()
   "Test that repos can be attached as remotes."
   (noflet ((magit-add-remote (remote url)
-             (cond ((string= "http://github.com/" url) (throw 'ok nil))
+             (cond ((string= "http://github.com/" url) 
+                    (throw 'ok nil))
                    (t (throw "Unexpected repo was added."))))
            (gh-repos-repo-get (api name &rest args)
              (test-response (:clone-url "http://github.com/"))))
-    (catch 'ok (magit-gh-repos-remote-add "foobar")
+    (catch 'ok (magit-gh-repos-add-remote "foobar")
            (throw 'fail "Remote wasn't added."))))
 
 (ert-deftest test-magit-gh-repos/remote-remove ()
