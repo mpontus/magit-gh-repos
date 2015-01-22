@@ -1,27 +1,7 @@
-t(require 'ert)
+(require 'ert)
 (require 'noflet)
 (require 'magit-gh-repos)
 
-(defconst api (make-instance 'gh-api :auth 
-                             (make-instance 'gh-authenticator :username 
-                                            "dummy")))
-
-(defmacro test-response (&optional m &rest p)
-  ;; (test-response () :http-status 404)
-  ;; (test-response (:name 1 :language 3) :http-status 404)
-  ;; (test-response ((:name 1 :language 3) (:description 4)) :http-status 404)
-  `(gh-api-paged-response 
-    "resp" ,@p
-    ,@(when m `(:data ,(if (consp (car m)) 
-                           (cons 'list 
-                                 (mapcar (lambda (m) `(gh-repos-repo-stub "repo" ,@m)) m))
-                         `(gh-repos-repo-stub "repo" ,@m))))))
-
-
-
-;; 
-;; 
-;; Display
 
 (ert-deftest tests-magit-gh-repos/ewoc ()
   "Should create new EWOC."
@@ -34,7 +14,6 @@ t(require 'ert)
     (catch 'ok (magit-gh-repos-draw-page '("bar"))
            ;; (magit-gh-repos-load-next-page "bar")
            (throw 'fail "EWOC haven't received any entries!")))) ;
-
 
 (ert-deftest tests-magit-gh-repos/configurable ()
   "Should insert result of evaluation as section's content."
