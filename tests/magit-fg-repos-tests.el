@@ -3,214 +3,150 @@
 (require 'magit-gh-repos)
 
 
-(ert-deftest tests-magit-gh-repos/ewoc ()
-  "Should create new EWOC."
-  (noflet ((ewoc-create (&rest args) (throw 'ok nil))
-           (gh-repos-user-list (&rest args) (test-response))) 
-    (catch 'ok (magit-gh-repos-load-next-page "foo")
-           (throw 'fail "Did not create new EWOC.")))
-  (noflet ((ewoc-enter-last (&rest args) (throw 'ok nil))
-           (gh-repos-user-list (&rest args) (test-response))) 
-    (catch 'ok (magit-gh-repos-draw-page '("bar"))
-           ;; (magit-gh-repos-load-next-page "bar")
-           (throw 'fail "EWOC haven't received any entries!")))) ;
-
-
-(ert-deftest tests-magit-gh-repos/configurable ()
-  "Should insert result of evaluation as section's content."
-  (let ((magit-gh-repos-formatters 
-         '((format "%-4s%s" language name)))) 
-    (magit-gh-repos-draw-entry
-     (gh-repos-repo "repo" :name "foo" :language "bar"
-                    :description "baz"))
-    (let ((string (buffer-substring-no-properties
-                   (point-min) (point-max))))
-      (should (equal "bar foo\n" string)))))  
 
 (ert-deftest tests-magit-gh-repos/root-section ()
-  "Listing should produce root magit section."
-  (magit-gh-repos-draw-page 
-   (list (gh-repos-repo "repo" :name "foo")))
-  (should magit-root-section))
-
-(ert-deftest tests-magit-gh-repos/entry-section ()
-  "Each entry should wrap its' output into maigt section"
-  (let ((magit-gh-repos--formatting '(name))) 
-    (magit-gh-repos-draw-entry 
-     (gh-repos-repo "repo" :name "foo")))
-  (should (= 1 (length (magit-section-children
-                        magit-root-section)))))
-
-(ert-deftest tests-magit-gh-repos/list-sections ()
   "Listing should have at least one section."
   (let ((magit-gh-repos-formatters '(name))
         magit-root-section)
-    (should-not magit-root-section)
-    (noflet ((gh-repos-user-list (&rest args)
-               (test-response ((:name "Foo") (:name "Bar")))))
-      (magit-gh-repos-load-next-page "foobar"))
+    (magit-gh-repos-display-list 
+     (list (gh-repos-repo "repo" :name "foo")
+           (gh-repos-repo "repo" :name "bar")))
     (should (magit-section-p magit-root-section))))
 
-;; Todo: Change into Listing > Entry sections
-;; (ert-deftest tests-magit-gh-repos/repo-sections ()
-;;   "Repos should have a section of their own."
-;;   (let ((magit-gh-repos-formatters '(name)) magit-root-section)
-;;     (magit-gh-repos-draw-page (list (gh-repos-repo "repo" :name "foo")))
-;;     (should (= 1 (length (magit-section-children magit-root-section))))))
+(ert-deftest tests-magit-gh-repos/root-section-title ()
+  "Should be able to provide title for root section."
+  (let ((magit-gh-repos-formatters '(name))
+        magit-root-section)
+    (magit-gh-repos-display-list 
+     (list (gh-repos-repo "repo" :name "foo")
+           (gh-repos-repo "repo" :name "bar"))
+     "Test Title:")
+    (goto-char (point-min))
+    (should 
+     (string= "Test Title:"
+              (buffer-substring (point) (point-at-eol))))))
 
-;; (ert-deftest tests-magit-gh-repos/configurable ()
-;;   "Should insert result of evaluation as section's content."
-;;   (let ((magit-gh-repos-formatters '((format "%-4s%s" language name)))) 
-;;     (magit-gh-repos-draw-entry
-;;      (gh-repos-repo "repo" :name "foo" :language "bar" :description "baz"))
-;;     (let ((string (buffer-substring-no-properties (point-min) (point-max))))
-;;       (should (equal "bar foo\n" string)))))  
-
-(ert-deftest tests-magit-gh-repos/list-sections ()
-  "Listing should have at least one section."
+(ert-deftest tests-magit-gh-repos/repo-sections ()
+  "Repos should have a section of their own."
   (let ((magit-gh-repos-formatters '(name))
         magit-root-section)
     (should-not magit-root-section)
-    (noflet ((gh-repos-user-list (&rest args)
-               (test-response ((:name "Foo") (:name "Bar")))))
-      (magit-gh-repos-load-next-page "foobar"))
-    (should (magit-section-p magit-root-section))))
+    (magit-gh-repos-display-list 
+     (list (gh-repos-repo "repo" :name "foo")
+           (gh-repos-repo "repo" :name "bar")))
+    (should (= 2 (length (magit-section-children magit-root-section))))))
 
-(ert-deftest tests-magit-gh-repos/magit-setup ()
-  "Should let magit to set up the buffer."
-  (noflet ((magit-mode-init (&rest args)
-             (throw 'ok nil)))
-    (catch 'ok (magit-gh-repos)
-           (throw 'fail "Did not call `magit-mode-init'"))))
+(ert-deftest tests-magit-gh-repos/configurable ()
+  "Should be able to configure output format."
+  (let ((magit-gh-repos-formatters '((format "%-4s%s" language name)))) 
+    (magit-gh-repos-display-item
+     (gh-repos-repo "repo" :name "foo" :language "bar" :description "baz"))
+    (let ((string (buffer-substring-no-properties (point-min) (point-max))))
+      (should (equal "bar foo\n" string)))))  
 
-(ert-deftest tests-magit-gh-repos/switch-function ()
-  "Should use magit config and allow passing as argument."
+(ert-deftest tests/magit-gh-repos/user-repos ()
+  "Should display list of user repos."
+  (let ((repos (list (gh-repos-repo "repo" :name "foo")
+                     (gh-repos-repo "repo" :name "bar"))))
+    (noflet ((gh-repos-user-list (api username &rest args)
+               (if (string= username "foobar")
+                   (gh-api-response "resp" :data repos)
+                   (throw 'fail "Requested repos for wrong user name.")))
+             (magit-gh-repos-display-list (items title)
+               (if (eq items repos) (throw 'ok nil)
+                   (throw 'fail "Displaying different repos."))))
+      (catch 'ok (magit-gh-repos-user-repos "foobar")
+             (throw 'fail "Did not display the list.")))))
 
-  (noflet ((show-buffer-fn (x &rest args) (throw 'ok nil)))
-    (catch 'ok (magit-gh-repos nil 'show-buffer-fn)
-           (throw 'fail "did not call specified switch-function")))
-  
-  (noflet ((another-fn (x &rest args) (throw 'ok nil)))
-    (let ((magit-gh-repos-switch-function 'another-fn))
-      (catch 'ok (magit-gh-repos nil 'another-fn)
-             (throw 'fail "Did not call configured switch-function")))))
+(ert-deftest test-magit-gh-repos/get-repo ()
+  "Test retrieving a repo object by name."
+  (let ((repo (gh-repos-repo "repo" :name "test"))) 
+    (noflet ((gh-repos-repo-get (api name &rest args)
+               (if (string= name "test") 
+                   (gh-api-response "resp" :data repo)
+                   (throw 'fail "Invalid name."))))
+      (should (eq repo (magit-gh-repos-get-repo "test"))))))
 
-(ert-deftest test-magit-gh-repos/username-query ()
-  "Should pass optional parameters to `gh-repos-user-list'."
-  (noflet ((gh-repos-user-list (a u &rest args)
-             (cond ((equal u "foobar") (throw 'ok nil))
-                   (t (throw 
-                          "Requested repos for wrong username.")))))
-    (catch 'ok (magit-gh-repos "foobar")
-           (throw 'fail "Did not request repos for any username."))))
+(ert-deftest test-magit-gh-repos/get-repo-1 ()
+  "Test that an object itself can be used as name."
+  (let ((repo (gh-repos-repo "repo" :name "test"))) 
+    (should (eq repo (magit-gh-repos-get-repo repo)))))
 
-(ert-deftest test-magit-gh-repos/interactive ()
-  "Should be able to accept username through interactive input."
-  (noflet ((gh-repos-user-list (api username &rest args)
-             (cond ((string= "foobar" username) (throw 'ok nil))
-                   (t (throw 'fail "Input was not processed.")))))
-    (catch 'ok (magit-gh-repos "foobar")
-           (throw 'fail "Did not contact the API."))))
-
-(ert-deftest test-magit-gh-repos/interactive-2 ()
-  "Should not pass empty string to API as username.."
-  (noflet ((gh-repos-user-list (api username &rest args)
-             (cond ((not username) (throw 'ok nil))
-                   (t (throw 'fail "Username was not a nil.")))))
-    (catch 'ok (magit-gh-repos "")
-           (throw 'fail "Did not contact the API."))))
-
-(ert-deftest test-magit-gh-repos/create-repo () 
-  (noflet ((gh-repos-repo-new (api repo)
-             (cond ((string= "new" (oref repo :name)) (throw 'ok nil))
-                   (t (throw 'fail "Wrong repo was created.")))))
-    (catch 'ok (magit-gh-repos-create-repo "new")
-           (throw 'fail "Did not create a repo.")))) ;
-
-
-
-(ert-deftest test-magit-gh-repos/delete-repo () 
-  (noflet ((gh-repos-repo-get (&rest args)
-             (test-response (:name "old")))
-           (gh-repos-repo-delete (api repo-id)
-             (cond ((string= "old" repo-id) (throw 'ok nil))
-                   (t (throw 'fail "Wrong repo was deleted.")))))
-    (catch 'okq (magit-gh-repos-delete-repo "old")
-           (throw 'fail "Did not delete a repo.")))) 
-
-(throw 'fail "Remote wasn't added."))))
-
-(ert-deftest test-magit-gh-repos/remote-remove ()
-  "Test that deleting a repo will remove it as remote."
-  (let ((magit-gh-repos-delete-remotes t))
-    (noflet ( (gh-repos-repo-get (api name &rest args)
-                (test-response (:clone-url "http://github.com/")))
-             (gh-repos-repo-delete (&rest args)
-               (test-response () :http-status 204))
-              (magit-gh-repos-get-remotes (url &rest args)
-                '("github" . "http://github.com/"))
-              (magit-remove-remote (remote &rest args) 
-                (cond ((string= "github" remote) (throw 'ok nil)r)
-                      (t (throw "Wrong remote for removal.")))))
-      (catch 'ok (magit-gh-repos-delete-repo "foo")
-             (throw 'fail
-               "Deleted repo was not removed from remotes.")))))
-
-(noflet ((magit-gh-repos-get-remotes (&optional url))
-         (gh-repos-repo-get (api name &rest args)
-           (test-response (:clone-url "http://github.com/")))
-         (magit-add-remote (remote url)
-           (cond ((string= "http://github.com/" url) (throw 'ok nil))
-                 (t (throw 'fail "Unexpected repo was added.")))))
-  (catch 'ok (magit-gh-repos-add-remote "foobar")
-         (throw 'error "Did not submit repo to magit!"))))
+(ert-deftest test-magit-gh-repos/add-remote ()
+  "Test adding repo as a remote."
+  (noflet ((magit-gh-repos-get-repo (name)
+             (gh-repos-repo "repo ":clone-url "http://github.com/"))
+           (magit-gh-repos-get-remotes ())
+           (magit-add-remote (remote url)
+             (cond ((string= "http://github.com/" url) (throw 'ok nil))
+                   (t (throw 'fail "Unexpected repo was added.")))))
+    (catch 'ok (magit-gh-repos-add-remote "foobar")
+           (throw 'fail "Did not add remote!"))))
 
 (ert-deftest test-magit-gh-repos/add-remote-1 ()
-  "Test that when adding remote when origin is occupied user will be asked."
-  (noflet ((gh-repos-repo-get (api name &rest args)
-             (test-response (:clone-url "http://github.com/")))
+  "Test that user will be asked if origin remote already exists."
+  (noflet ((magit-gh-repos-get-repo (name)
+             (gh-repos-repo "repo" :clone-url "http://github.com/"))
            (magit-gh-repos-get-remotes (&optional url)
              '(("origin" . "http://google.com")))
            (magit-completing-read (&rest args) "alternative")
            (magit-add-remote (remote url)
-             (cond ((and (string= "http://github.com/" url)
-                         (string= "alternative" remote)) (throw 'ok nil))
-                   (t (throw 'fail "Unexpected repo was added.")))))
+             (cond ((string= "alternative" remote) (throw 'ok nil))
+                   (t (throw 'fail "Unexpected remote name.")))))
     (catch 'ok (magit-gh-repos-add-remote "foobar")
-           (throw 'error "Did not submit repo to magit!"))))
+           (throw 'fail "Did not add remote!"))))
 
 (ert-deftest test-magit-gh-repos/add-remote-2 ()
   "Test ignoring duplicates."
-  (noflet ((gh-repos-repo-get (api name &rest args)
-             (test-response (:clone-url "http://github.com/")))
-           (magit-gh-repos-get-remotes (&optional url)
+  (noflet ((magit-gh-repos-get-repo (name) 
+             (gh-repos-repo "repo" :clone-url "http://github.com/"))
+           (magit-gh-repos-get-remotes ()
              '(("whatever" . "http://github.com/")))
-           (magit-add-remote (remote url)
+           (magit-add-remote (&rest args)
              (throw 'fail "Should not add duplicates.")))
     (magit-gh-repos-add-remote "foobar")))
 
-(noflet ((magit-add-remote (remote url)
-           (cond ((string= "http://github.com/" url) (throw 'ok nil))
-                 (t (throw "Unexpected repo was added."))))
-         (gh-repos-repo-get (api name &rest args)
-           (test-response (:clone-url "http://github.com/"))))
-  (catch 'ok (magit-gh-repos-remote-add "foobar")
-         (throw 'fail "Remote wasn't added."))))
+(ert-deftest test-magit-gh-repos/create-repo ()
+  "Test creating a repo."
+  (noflet ((gh-repos-repo-new (api repo &rest args )
+             (if (string= "foo" (oref repo :name)) (throw 'ok nil)
+                 (throw 'fail "Wrong name for created repo."))))
+    (catch 'ok (magit-gh-repos-create-repo "foo")
+           (throw 'fail "Did not create a repo."))))
 
-(ert-deftest test-magit-gh-repos/remote-remove ()
+(ert-deftest test-magit-gh-repos/create-repo-1 ()
+  "Test adding a remote for created repo."
+  (let ((repo (gh-repos-repo "repo":clone-url "http://github.com/"))) 
+    (noflet ((gh-repos-repo-new (api repo &rest args) 
+               (gh-api-response "resp" :http-status 201 :data repo))
+             (magit-gh-repos-add-remote (new-repo)
+               (if (eq repo new-repo) (throw 'ok nil)
+                   (throw 'fail "Adding remote for wrong repo."))))
+      (catch 'ok (magit-gh-repos-create-repo "foo")
+             (throw 'fail "Did not add remote.")))))
+
+(ert-deftest test-magit-gh-repos/delete-repo ()
+  "Test creating a repo."
+  (noflet ((gh-repos-repo-delete (api repo-id &rest ags)
+             (if (string= "foo" repo-id) (throw 'ok nil)
+                 (throw 'fail "Wrong name for deleted repo."))))
+    (catch 'ok (magit-gh-repos-delete-repo "foo")
+           (throw 'fail "Did not delete a repo."))))
+
+(ert-deftest test-magit-gh-repos/delete-repo-1 ()
   "Test that deleting a repo will remove it as remote."
-  (let ((magit-gh-repos-delete-remotes t))
-    (noflet ( (gh-repos-repo-get (api name &rest args)
-                (test-response (:clone-url "http://github.com/")))
+  (let ((repo (gh-repos-repo "repo" :clone-url "http://github.com/")))
+    (noflet ((gh-repos-repo-get (api name &rest args)
+               (gh-api-response "resp" :data repo))
              (gh-repos-repo-delete (&rest args)
-               (test-response () :http-status 204))
-              (magit-gh-repos-get-remotes (url &rest args)
-                '("github" . "http://github.com/"))
-              (magit-remove-remote (remote &rest args) 
-                (cond ((string= "github" remote) (throw 'ok nil)r)
-                      (t (throw "Wrong remote for removal.")))))
+               (gh-api-response "resp" :http-status 204))
+             (magit-gh-repos-get-remotes (url &rest args)
+               '("github" . "http://github.com/"))
+             (magit-remove-remote (remote &rest args) 
+               (cond ((string= "github" remote) (throw 'ok nil))
+                     (t (throw 'fail "Removing wrong remote.")))))
       (catch 'ok (magit-gh-repos-delete-repo "foo")
-             (throw 'fail
-               "Deleted repo was not removed from remotes.")))))
+             (throw 'fail "Did not remove remote.")))))
 
 
+ 

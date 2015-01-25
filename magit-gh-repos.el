@@ -29,75 +29,46 @@
 (require 'ewoc)
 (require 'magit)
 (require 'gh-repos)
-
 (eval-when-compile
   (require 'names))
 
-(define-derived-mode magit-gh-repos-mode magit-mode "Github Repos")
-
-(defun magit-gh-repos (&optional username switch-function)
-  "Display listing of USERNAME's or your own repos."
-  (interactive "MUsername: ")
-  (magit-mode-setup "*magit-gh-repos*"
-                    (or switch-function
-                        magit-gh-repos-switch-function)
-                    'magit-gh-repos-mode
-                    'magit-gh-repos-load-next-page 
-                    (if (string= "" username) nil username)))
-
 (define-namespace magit-gh-repos-
-:dont-assume-function-quote
 :package magit-gh-repos
 :group magit-gh-repos
 
 (defconst api (gh-repos-api "*api*"))
 
-(defcustom delete-remotes nil
-  "Should we delete remotes left after deleting repo.")
-
-(defcustom switch-function 'pop-to-buffer
-  "Function used to display buffer with repo listing.")
-
 (defcustom formatters '(full-name desription last-updated)
   "Each form produces descendant section in repo output. ")
 
-(defun load-next-page (username)
-  (let ((response (gh-repos-user-list api username)))
-    (draw-page (oref response :data))))
+(defcustom user-repos-buffer-name "%s's repos"
+  "Format for `magit-gh-repos-user-repos' buffer name.")
 
-(defun draw-page (entries)
-  (let* ((printer #'magit-gh-repos-draw-entry)
-         (ewoc (ewoc-create printer nil nil 'nosep)))
-    (mapc (apply-partially 'ewoc-enter-last ewoc) entries)))
+(defcustom user-repos-switch-function 'pop-to-buffer
+  "Function for `magit-gh-repos-user-repos' to use for switching buffers.")
 
-(defun draw-entry (entry)
+(defun user-repos (username &optional switch-function)
+  (magit-mode-setup 
+   (format magit-gh-repos-user-repos-buffer-name username)
+   (or switch-function magit-gh-repos-user-repos-switch-function)
+   'magit-mode (lambda (username) 
+                 (magit-gh-repos-display-list
+                  (oref (gh-repos-user-list api username) :data)
+                  (format "%s's repos" username))) username))
+
+(defun display-list (items &optional title)
+  (let ((ewoc (ewoc-create #'display-item nil nil 'nosep)))
+    (magit-with-section (section section nil title)
+      (mapc (apply-partially 'ewoc-enter-last ewoc) items))))
+
+(defun display-item (entry)
   (let ((context (mapcar (lambda (s) (cons s (slot-value entry s)))
                          (object-slots entry)))) 
     (dolist (form formatters)
       (magit-with-section (section section)
         (insert (eval form context) ?\n)))))
 
-(defun create-repo (name)
-  (interactive "MCreate new repo: ")
-  (let* ((repo (gh-repos-repo "repo" :name name))
-         (response (gh-repos-repo-new
-                    (gh-repos-api "api") repo)))
-    (oref response :data)))
-
-
-;; Sections need to have at least some content
-
-(defun delete-repo (name)
-  (interactive "MDelete repo: ")
-  (let* ((response (gh-repos-repo-get (gh-repos-api "api") name))
-         (repo-url  (oref (oref response :data) :clone-url))
-         (response (gh-repos-repo-delete (gh-repos-api "api") name)))
-    (unless (= 204 (oref response :http-status))
-      (user-error "There was a problem deleting the repo"))
-    (when delete-remotes 
-      (let ((remote (get-remotes repo-url)))
-        (when remote 
-          (magit-remove-remote (car remote)))))))
+;; Basic Commands
 
 (defun get-remotes (&optional url)
   "When URL is specified returns matching alist entry.
@@ -112,9 +83,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
 
 (defun add-remote (name)
   (interactive "MAdd remote to repo: ") ;
-  (let* ((response (gh-repos-repo-get 
-                    (gh-repos-api "api") name))
-         (repo (oref response :data))
+  (let* ((repo (get-repo name))
          (url (oref repo :clone-url))
          (remotes (get-remotes))
          (remote "origin"))
@@ -122,8 +91,31 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
       (when (assoc remote remotes)
         (setq remote (magit-completing-read
                       "Use remote" remotes)))
-      (magit-add-remote remote url)))))
+      (magit-add-remote remote url))))
 
+(defun get-repo (name)
+  (if (stringp name)
+      (let ((resp (gh-repos-repo-get api name)))
+        (oref resp :data)) name))
+
+(defun create-repo (name)
+  (interactive "MCreate new repo: ")
+  (let* ((repo (gh-repos-repo-stub "repo" :name name))
+         (resp (gh-repos-repo-new api repo)))
+    (unless (= 201 (oref resp :http-status))
+      (error (assq 'status-string (oref resp :headers))))
+    (add-remote (oref resp :data))))
+
+(defun delete-repo (name)
+  (interactive "MDelete repo: ")
+  (let* ((repo (get-repo name))
+         (resp (gh-repos-repo-delete api (oref repo :name))))
+    (unless (= 204 (oref resp :http-status))
+      (error (assq 'status-string (oref resp :headers))))
+    (let ((remote (get-remotes (oref repo :clone-url))))
+      (when remote (magit-remove-remote (car remote))))))
+
+)
 
 (provide 'magit-gh-repos)
 
