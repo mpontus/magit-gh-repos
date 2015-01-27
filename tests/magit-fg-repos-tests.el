@@ -197,7 +197,7 @@
    (let ((repos (list (gh-repos-repo "repo" :name "foo")
                       (gh-repos-repo "repo" :name "bar")))
          (main-repo   (gh-repos-repo "repo" :name "baz")))
-     (noflet ((gh-repos-forks-list (api erepo &rest args)
+     (noflet ((gh-repos-forks-list (api repo &rest args)
                 (should (eq main-repo repo))
                 (gh-api-response "resp" :data repos))
               (magit-gh-repos-display-list (items title)
