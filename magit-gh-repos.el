@@ -60,6 +60,7 @@
   "Function for `magit-gh-repos-user-repos' to use for switching buffers.")
 
 (defun user-repos (username &optional switch-function)
+  
   (magit-mode-setup 
    (format magit-gh-repos-user-repos-buffer-name username)
    (or switch-function magit-gh-repos-user-repos-switch-function)
@@ -75,7 +76,7 @@
   "Function for `magit-gh-repos-forks-list' to use for switching buffers.")
 
 (defun forks-list (repo-name &optional recursive switch-function)
-  (let ((repo (get-repo repo-name))) 
+  (let ((repo (get-repo-by-name repo-name))) 
     (magit-mode-setup 
      (format magit-gh-repos-forks-list-buffer-name (oref repo full-name))
      (or switch-function magit-gh-repos-forks-list-switch-function)
@@ -98,9 +99,13 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
       (if url (rassoc url alist) alist))))
 
 (defun add-remote (name)
+  "Add a repo referenced by NAME as remote."
   (interactive "MAdd remote to repo: ") ;
-  (let* ((repo (get-repo name))
-         (url (oref repo :clone-url))
+  (add-remote-to-repo (get-repo-by-name name)))
+
+(defun add-remote-to-repo (repo)
+  ;; Extracted so the commands can bypass name resolution
+  (let* ((url (oref repo :clone-url))
          (remotes (get-remotes))
          (remote "origin"))
     (unless (rassoc url remotes)
@@ -109,11 +114,11 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
                       "Use remote" remotes)))
       (magit-add-remote remote url))))
 
-(defun get-repo (name)
-  (if (stringp name)
-      (let ((resp (gh-repos-repo-get api name)))
-        (oref resp :data)) 
-      name))
+(defun get-repo-by-name (name)
+  (let ((resp (gh-repos-repo-get api name)))
+    (unless (= 200 (oref resp :http-status))
+      (error (cdr (assq 'status-string (oref resp :headers)))))
+    (oref resp :data)))
 
 (defun create-repo (name)
   (interactive "MCreate new repo: ")
@@ -121,11 +126,11 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
          (resp (gh-repos-repo-new api repo)))
     (unless (= 201 (oref resp :http-status))
       (error (cdr (assq 'status-string (oref resp :headers)))))
-    (add-remote (oref resp :data))))
+    (add-remote-to-repo (oref resp :data))))
 
 (defun delete-repo (name)
   (interactive "MDelete repo: ")
-  (let* ((repo (get-repo name))
+  (let* ((repo (get-repo-by-name name))
          (resp (gh-repos-repo-delete api (oref repo :name))))
     (unless (= 204 (oref resp :http-status))
       (error (cdr (assq 'status-string (oref resp :headers)))))
@@ -133,15 +138,11 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
       (when remote (magit-remove-remote (car remote))))))
 
 (defun fork-repo (name &optional org)
-  (let* ((repo (get-repo name))
+  (let* ((repo (get-repo-by-name name))
          (resp (gh-repos-fork api repo)))
     (unless (= 202 (oref resp :http-status))
       (error (cdr (assq 'status-string (oref resp :headers)))))
-    (add-remote (oref resp :data))))
-
-
-
-)
+    (add-remote-to-repo (oref resp :data)))))
 
 (provide 'magit-gh-repos)
 

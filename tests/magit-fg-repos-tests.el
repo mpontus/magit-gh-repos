@@ -62,7 +62,8 @@
                       (gh-repos-repo "repo" :name "bar"))))
      (noflet ((gh-repos-user-list (api username &rest args)
                 (if (string= username "foobar")
-                    (gh-api-response "resp" :data repos)
+                    (gh-api-response "resp" :data repos
+                                     :http-status 200)
                     (throw 'fail "Requested repos for wrong user name.")))
               (magit-gh-repos-display-list (items title)
                 (if (eq items repos) (throw 'ok nil)
@@ -70,26 +71,21 @@
        (catch 'ok (magit-gh-repos-user-repos "foobar")
               (throw 'fail "Did not display the list."))))))
 
-(ert-deftest test-magit-gh-repos/get-repo ()
+(ert-deftest test-magit-gh-repos/get-repo-by-name ()
   "Test retrieving a repo object by name."
   (tests-magit-gh-repos-setup
    (let ((repo (gh-repos-repo "repo" :name "test"))) 
      (noflet ((gh-repos-repo-get (api name &rest args)
                 (if (string= name "test") 
-                    (gh-api-response "resp" :data repo)
+                    (gh-api-response "resp" :data repo
+                                     :http-status 200)
                     (throw 'fail "Invalid name."))))
-       (should (eq repo (magit-gh-repos-get-repo "test")))))))
-
-(ert-deftest test-magit-gh-repos/get-repo-1 ()
-  "Test that an object itself can be used as name."
-  (tests-magit-gh-repos-setup
-   (let ((repo (gh-repos-repo "repo" :name "test"))) 
-     (should (eq repo (magit-gh-repos-get-repo repo))))))
+       (should (eq repo (magit-gh-repos-get-repo-by-name "test")))))))
 
 (ert-deftest test-magit-gh-repos/add-remote ()
   "Test adding repo as a remote."
   (tests-magit-gh-repos-setup
-   (noflet ((magit-gh-repos-get-repo (name)
+   (noflet ((magit-gh-repos-get-repo-by-name (name)
               (gh-repos-repo "repo ":clone-url "http://github.com/"))
             (magit-gh-repos-get-remotes ())
             (magit-add-remote (remote url)
@@ -101,7 +97,7 @@
 (ert-deftest test-magit-gh-repos/add-remote-1 ()
   "Test that user will be asked if origin remote already exists."
   (tests-magit-gh-repos-setup
-   (noflet ((magit-gh-repos-get-repo (name)
+   (noflet ((magit-gh-repos-get-repo-by-name (name)
               (gh-repos-repo "repo" :clone-url "http://github.com/"))
             (magit-gh-repos-get-remotes (&optional url)
               '(("origin" . "http://google.com")))
@@ -115,7 +111,7 @@
 (ert-deftest test-magit-gh-repos/add-remote-2 ()
   "Test ignoring duplicates."
   (tests-magit-gh-repos-setup
-   (noflet ((magit-gh-repos-get-repo (name) 
+   (noflet ((magit-gh-repos-get-repo-by-name (name) 
               (gh-repos-repo "repo" :clone-url "http://github.com/"))
             (magit-gh-repos-get-remotes ()
               '(("whatever" . "http://github.com/")))
@@ -137,7 +133,8 @@
   (tests-magit-gh-repos-setup
    (let ((repo (gh-repos-repo "repo" :clone-url "http://github.com/"))) 
      (noflet ((gh-repos-repo-new (&rest args) 
-                (gh-api-response "resp" :http-status 201 :data repo))
+                (gh-api-response "resp" :data repo
+                                 :http-status 201))
               (magit-add-remote (remote url)
                 (if (string= "http://github.com/" url) (throw 'ok nil)
                     (throw 'fail "Adding remote for wrong repo."))))
@@ -150,7 +147,7 @@
    (noflet ((gh-repos-repo-get (api name &rest args)
               (should (string= "foo" name))
               (gh-api-response "resp" 
-                :http-status 201
+                :http-status 200
                 :data (gh-repos-repo "repo" :name "foo")))
             (gh-repos-repo-delete (api repo-id &rest ags)
               (if (string= "foo" repo-id) (throw 'ok nil)
@@ -163,7 +160,8 @@
   (tests-magit-gh-repos-setup
    (let ((repo (gh-repos-repo "repo" :clone-url "http://github.com/")))
      (noflet ((gh-repos-repo-get (api name &rest args)
-                (gh-api-response "resp" :data repo))
+                (gh-api-response "resp" :data repo
+                                 :http-status 200))
               (gh-repos-repo-delete (&rest args)
                 (gh-api-response "resp" :http-status 204))
               (magit-gh-repos-get-remotes (url &rest args)
@@ -181,10 +179,12 @@
          (fork-repo (gh-repos-repo "repo" :clone-url "http://github.com/fork/"))) 
      (noflet ((gh-repos-repo-get (api name)
                 (should (string= "foobar" name)) 
-                (gh-api-response "resp" :http-status 200 :data orig-repo))
+                (gh-api-response "resp" :data orig-repo
+                                 :http-status 200))
               (gh-repos-fork (api repo &rest args)
                 (should (eq repo orig-repo))
-                (gh-api-response "resp" :http-status 202 :data fork-repo))
+                (gh-api-response "resp" :data fork-repo
+                                 :http-status 202))
               (magit-add-remote (remote url)
                 (if (string= url "http://github.com/fork/") (throw 'ok nil)
                     (thorw 'fail "Adding wrong url as remote."))))
@@ -197,11 +197,17 @@
    (let ((repos (list (gh-repos-repo "repo" :name "foo")
                       (gh-repos-repo "repo" :name "bar")))
          (main-repo   (gh-repos-repo "repo" :name "baz")))
-     (noflet ((gh-repos-forks-list (api repo &rest args)
+     (noflet ((gh-repos-repo-get (api name &rest args)
+                (gh-api-response (eq "foo" name))
+                (gh-api-response "resp" :data main-repo
+                                 :http-status 200))
+
+              (gh-repos-forks-list (api repo &rest args)
                 (should (eq main-repo repo))
-                (gh-api-response "resp" :data repos))
+                (gh-api-response "resp" :data repos
+                                 :http-status 200))
               (magit-gh-repos-display-list (items title)
                 (if (equal repos items) (throw 'ok nil)
                     (throw 'fail "Wrong items have been sent to display."))))
-       (catch 'ok (magit-gh-repos-forks-list main-repo)
+       (catch 'ok (magit-gh-repos-forks-list "foo")
               (throw 'fail "Nothing was displayed."))))))
