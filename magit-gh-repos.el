@@ -41,6 +41,18 @@
 (defcustom formatters '(full-name desription last-updated)
   "Each form produces descendant section in repo output. ")
 
+(defun display-list (items &optional title)
+  (let ((ewoc (ewoc-create #'display-item nil nil 'nosep)))
+    (magit-with-section (section section nil title)
+      (mapc (apply-partially 'ewoc-enter-last ewoc) items))))
+
+(defun display-item (entry)
+  (let ((context (mapcar (lambda (s) (cons s (slot-value entry s)))
+                         (object-slots entry)))) 
+    (dolist (form formatters)
+      (magit-with-section (section section)
+        (insert (eval form context) ?\n)))))
+
 (defcustom user-repos-buffer-name "%s's repos"
   "Format for `magit-gh-repos-user-repos' buffer name.")
 
@@ -53,20 +65,24 @@
    (or switch-function magit-gh-repos-user-repos-switch-function)
    'magit-mode (lambda (username) 
                  (magit-gh-repos-display-list
-                  (oref (gh-repos-user-list api username) :data)
+                  (oref (gh-repos-user-list magit-gh-repos-api username) :data)
                   (format "%s's repos" username))) username))
 
-(defun display-list (items &optional title)
-  (let ((ewoc (ewoc-create #'display-item nil nil 'nosep)))
-    (magit-with-section (section section nil title)
-      (mapc (apply-partially 'ewoc-enter-last ewoc) items))))
+(defcustom forks-list-buffer-name "%s's repos"
+  "Format for `magit-gh-repos-forks-list' buffer name.")
 
-(defun display-item (entry)
-  (let ((context (mapcar (lambda (s) (cons s (slot-value entry s)))
-                         (object-slots entry)))) 
-    (dolist (form formatters)
-      (magit-with-section (section section)
-        (insert (eval form context) ?\n)))))
+(defcustom forks-list-switch-function 'pop-to-buffer
+  "Function for `magit-gh-repos-forks-list' to use for switching buffers.")
+
+(defun forks-list (repo-name &optional recursive switch-function)
+  (let ((repo (get-repo repo-name))) 
+    (magit-mode-setup 
+     (format magit-gh-repos-forks-list-buffer-name (oref repo full-name))
+     (or switch-function magit-gh-repos-forks-list-switch-function)
+     'magit-mode (lambda (repo) 
+                   (magit-gh-repos-display-list
+                    (oref (gh-repos-forks-list magit-gh-repos-api repo) :data)
+                    (format "%s's forks" (oref repo full-name)))) repo)))
 
 ;; Basic Commands
 
@@ -96,14 +112,15 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
 (defun get-repo (name)
   (if (stringp name)
       (let ((resp (gh-repos-repo-get api name)))
-        (oref resp :data)) name))
+        (oref resp :data)) 
+      name))
 
 (defun create-repo (name)
   (interactive "MCreate new repo: ")
   (let* ((repo (gh-repos-repo-stub "repo" :name name))
          (resp (gh-repos-repo-new api repo)))
     (unless (= 201 (oref resp :http-status))
-      (error (assq 'status-string (oref resp :headers))))
+      (error (cdr (assq 'status-string (oref resp :headers)))))
     (add-remote (oref resp :data))))
 
 (defun delete-repo (name)
@@ -111,9 +128,18 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
   (let* ((repo (get-repo name))
          (resp (gh-repos-repo-delete api (oref repo :name))))
     (unless (= 204 (oref resp :http-status))
-      (error (assq 'status-string (oref resp :headers))))
+      (error (cdr (assq 'status-string (oref resp :headers)))))
     (let ((remote (get-remotes (oref repo :clone-url))))
       (when remote (magit-remove-remote (car remote))))))
+
+(defun fork-repo (name &optional org)
+  (let* ((repo (get-repo name))
+         (resp (gh-repos-fork api repo)))
+    (unless (= 202 (oref resp :http-status))
+      (error (cdr (assq 'status-string (oref resp :headers)))))
+    (add-remote (oref resp :data))))
+
+
 
 )
 
