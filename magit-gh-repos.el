@@ -172,11 +172,23 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
       (when remote (magit-remove-remote (car remote))))))
 
 (defun fork-repo (name &optional org)
+  (interactive "MFork repo: ")
   (let* ((repo (get-repo-by-name name))
          (resp (gh-repos-fork api repo)))
     (unless (= 202 (oref resp :http-status))
       (error (cdr (assq 'status-string (oref resp :headers)))))
-    (add-remote-to-repo (oref resp :data)))))
+    (add-remote-to-repo (oref resp :data))))
+
+(defun rename-repo (name new-name)
+  (interactive "MRename repo: ")
+  (let* ((repo (get-repo-by-name name))
+         (resp (gh-repos-repo-rename api repo new-name)))
+    (unless (= 200 (oref resp :http-status))
+      (error (cdr (assq 'status-string (oref resp :headers)))))
+    (let ((remote (get-remotes (oref repo :clone-url))))
+      (when remote (magit-git-success
+                    (list "remote" "set-url" (car remote) 
+                          (oref (oref resp :data) :clone-url))))))))
 
 (provide 'magit-gh-repos)
 

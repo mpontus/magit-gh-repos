@@ -55,7 +55,6 @@
      (let ((string (buffer-substring-no-properties (point-min) (point-max))))
        (should (equal "bar foo\n" string))))))
 
-
 (ert-deftest tests/magit-gh-repos/user-repos ()
   "Should display list of user repos."
   (tests-magit-gh-repos-setup
@@ -212,3 +211,26 @@
                     (throw 'fail "Wrong items have been sent to display."))))
        (catch 'ok (magit-gh-repos-forks-list "foo")
               (throw 'fail "Nothing was displayed."))))))
+
+(ert-deftest test-magit-gh-repos/rename ()
+  "Renaming the repo should update remote url."
+  (tests-magit-gh-repos-setup
+   (let ((orig-repo (gh-repos-repo "repo" :clone-url "http://google.com/"))
+         (new-repo (gh-repos-repo "repo" :clone-url "http://github.com/")))
+     (noflet ((gh-repos-repo-get (api name &rest args)
+                (should (string= "foo" name))
+                (gh-api-response "date" :data orig-repo
+                                 :http-status 200 ))
+              (gh-repos-repo-rename (api repo name &rest args)
+                (should (eq orig-repo repo))
+                (gh-api-response "date" :data new-repo
+                                 :http-status 200 ))
+              (magit-gh-repos-get-remotes (url)
+                (should (string= "http://google.com/" url))
+                (cons "test" "http://google.com/"))
+              (magit-git-success (args)
+                (if (equal args '("remote" "set-url" "test" "http://github.com/")) 
+                    (throw 'ok nil) (throw 'fail "Wrong arguments!"))))
+       (catch 'ok (magit-gh-repos-rename-repo "foo" "bar")
+              (throw 'fail "Remote url hasn't changed!"))))))
+
