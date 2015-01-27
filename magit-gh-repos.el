@@ -60,7 +60,7 @@
   "Function for `magit-gh-repos-user-repos' to use for switching buffers.")
 
 (defun user-repos (username &optional switch-function)
-  
+  (interactive "MForks for user: ")
   (magit-mode-setup 
    (format magit-gh-repos-user-repos-buffer-name username)
    (or switch-function magit-gh-repos-user-repos-switch-function)
@@ -76,6 +76,7 @@
   "Function for `magit-gh-repos-forks-list' to use for switching buffers.")
 
 (defun forks-list (repo-name &optional recursive switch-function)
+  (interactive "MForks for repo: ")
   (let ((repo (get-repo-by-name repo-name))) 
     (magit-mode-setup 
      (format magit-gh-repos-forks-list-buffer-name (oref repo full-name))

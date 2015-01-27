@@ -53,7 +53,8 @@
      (magit-gh-repos-display-item
       (gh-repos-repo "repo" :name "foo" :language "bar" :description "baz"))
      (let ((string (buffer-substring-no-properties (point-min) (point-max))))
-       (should (equal "bar foo\n" string))))))  
+       (should (equal "bar foo\n" string))))))
+
 
 (ert-deftest tests/magit-gh-repos/user-repos ()
   "Should display list of user repos."
