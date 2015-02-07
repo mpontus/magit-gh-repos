@@ -7,15 +7,14 @@
   `(noflet ((magit-git-lines (&rest args))
             (url-retrieve (&rest args))
             (url-retrieve-synchronously (&rest args)))
-     ,@body))
-
-
+     (let ((magit-gh-repos-formatters '(name))
+           (magit-gh-repos-url-slot :clone-url)) 
+       ,@body)))
 
 (ert-deftest tests-magit-gh-repos/root-section ()
   "Listing should have at least one section."
   (tests-magit-gh-repos-setup
-   (let ((magit-gh-repos-formatters '(name))
-         magit-root-section)
+   (let (magit-root-section)
      (magit-gh-repos-display-list 
       (list (gh-repos-repo "repo" :name "foo")
             (gh-repos-repo "repo" :name "bar")))
@@ -24,8 +23,7 @@
 (ert-deftest tests-magit-gh-repos/root-section-title ()
   "Should be able to provide title for root section."
   (tests-magit-gh-repos-setup
-   (let ((magit-gh-repos-formatters '(name))
-         magit-root-section)
+   (let (magit-root-section)
      (magit-gh-repos-display-list 
       (list (gh-repos-repo "repo" :name "foo")
             (gh-repos-repo "repo" :name "bar"))
@@ -38,8 +36,7 @@
 (ert-deftest tests-magit-gh-repos/repo-sections ()
   "Repos should have a section of their own."
   (tests-magit-gh-repos-setup
-   (let ((magit-gh-repos-formatters '(name))
-         magit-root-section)
+   (let (magit-root-section)
      (should-not magit-root-section)
      (magit-gh-repos-display-list 
       (list (gh-repos-repo "repo" :name "foo")
@@ -55,7 +52,7 @@
      (let ((string (buffer-substring-no-properties (point-min) (point-max))))
        (should (equal "bar foo\n" string))))))
 
-(ert-deftest tests/magit-gh-repos/user-repos ()
+(ert-deftest tests-magit-gh-repos/user-repos ()
   "Should display list of user repos."
   (tests-magit-gh-repos-setup
    (let ((repos (list (gh-repos-repo "repo" :name "foo")
@@ -71,7 +68,22 @@
        (catch 'ok (magit-gh-repos-user-repos "foobar")
               (throw 'fail "Did not display the list."))))))
 
-(ert-deftest test-magit-gh-repos/get-repo-by-name ()
+(ert-deftest tests-magit-gh-repos/user-repos-1 ()
+  "Should default to using api username."
+  (tests-magit-gh-repos-setup
+   (noflet ((gh-api-get-username (&rest args) "foobar")
+            (magit-completing-read
+                (prompt collection predicate require-match 
+                        initial-input history default)
+              (should (string= default "foobar")) "")
+            (gh-repos-user-list (api username)
+              (if (string= username "foobar") (throw 'ok nil)
+                  (throw 'fail 
+                    "Empty input should be replaced with api username."))))
+     (catch 'ok (call-interactively 'magit-gh-repos-user-repos)
+            (throw 'fail "Did not attempt to fetch the list.")))))
+
+(ert-deftest tests-magit-gh-repos/get-repo-by-name ()
   "Test retrieving a repo object by name."
   (tests-magit-gh-repos-setup
    (let ((repo (gh-repos-repo "repo" :name "test"))) 
@@ -82,7 +94,7 @@
                     (throw 'fail "Invalid name."))))
        (should (eq repo (magit-gh-repos-get-repo-by-name "test")))))))
 
-(ert-deftest test-magit-gh-repos/add-remote ()
+(ert-deftest tests-magit-gh-repos/add-remote ()
   "Test adding repo as a remote."
   (tests-magit-gh-repos-setup
    (noflet ((magit-gh-repos-get-repo-by-name (name)
@@ -94,7 +106,7 @@
      (catch 'ok (magit-gh-repos-add-remote "foobar")
             (throw 'fail "Did not add remote!")))))
 
-(ert-deftest test-magit-gh-repos/add-remote-1 ()
+(ert-deftest tests-magit-gh-repos/add-remote-1 ()
   "Test that user will be asked if origin remote already exists."
   (tests-magit-gh-repos-setup
    (noflet ((magit-gh-repos-get-repo-by-name (name)
@@ -108,7 +120,7 @@
      (catch 'ok (magit-gh-repos-add-remote "foobar")
             (throw 'fail "Did not add remote!")))))
 
-(ert-deftest test-magit-gh-repos/add-remote-2 ()
+(ert-deftest tests-magit-gh-repos/add-remote-2 ()
   "Test ignoring duplicates."
   (tests-magit-gh-repos-setup
    (noflet ((magit-gh-repos-get-repo-by-name (name) 
@@ -119,7 +131,7 @@
               (throw 'fail "Should not add duplicates.")))
      (magit-gh-repos-add-remote "foobar"))))
 
-(ert-deftest test-magit-gh-repos/create-repo ()
+(ert-deftest tests-magit-gh-repos/create-repo ()
   "Test creating a repo."
   (tests-magit-gh-repos-setup
    (noflet ((gh-repos-repo-new (api repo &rest args )
@@ -128,7 +140,7 @@
      (catch 'ok (magit-gh-repos-create-repo "foo")
             (throw 'fail "Did not create a repo.")))))
 
-(ert-deftest test-magit-gh-repos/create-repo-1 ()
+(ert-deftest tests-magit-gh-repos/create-repo-1 ()
   "Test adding a remote for created repo."
   (tests-magit-gh-repos-setup
    (let ((repo (gh-repos-repo "repo" :clone-url "http://github.com/"))) 
@@ -141,7 +153,7 @@
        (catch 'ok (magit-gh-repos-create-repo "foo")
               (throw 'fail "Did not add remote."))))))
 
-(ert-deftest test-magit-gh-repos/delete-repo ()
+(ert-deftest tests-magit-gh-repos/delete-repo ()
   "Test creating a repo."
   (tests-magit-gh-repos-setup
    (noflet ((gh-repos-repo-get (api name &rest args)
@@ -155,7 +167,7 @@
      (catch 'ok (magit-gh-repos-delete-repo "foo")
             (throw 'fail "Did not delete a repo.")))))
 
-(ert-deftest test-magit-gh-repos/delete-repo-1 ()
+(ert-deftest tests-magit-gh-repos/delete-repo-1 ()
   "Test that deleting a repo will remove it as remote."
   (tests-magit-gh-repos-setup
    (let ((repo (gh-repos-repo "repo" :clone-url "http://github.com/")))
@@ -172,7 +184,7 @@
        (catch 'ok (magit-gh-repos-delete-repo "foo")
               (throw 'fail "Did not remove remote."))))))
 
-(ert-deftest test-magit-gh-repos/fork-repo ()
+(ert-deftest tests-magit-gh-repos/fork-repo ()
   "Should be able to fork repo."
   (tests-magit-gh-repos-setup
    (let ((orig-repo (gh-repos-repo "repo" :clone-url "http://github.com/orig/"))
@@ -187,11 +199,11 @@
                                  :http-status 202))
               (magit-add-remote (remote url)
                 (if (string= url "http://github.com/fork/") (throw 'ok nil)
-                    (thorw 'fail "Adding wrong url as remote."))))
+                    (throw 'fail "Adding wrong url as remote."))))
        (catch 'ok (magit-gh-repos-fork-repo "foobar")
               (throw 'fail "Repo wasn't added as a remote."))))))
 
-(ert-deftest test-magit-gh-repos/forks-list ()
+(ert-deftest tests-magit-gh-repos/forks-list ()
   "Test that list of forks will be displayed."
   (tests-magit-gh-repos-setup
    (let ((repos (list (gh-repos-repo "repo" :name "foo")
@@ -212,7 +224,7 @@
        (catch 'ok (magit-gh-repos-forks-list "foo")
               (throw 'fail "Nothing was displayed."))))))
 
-(ert-deftest test-magit-gh-repos/rename ()
+(ert-deftest tests-magit-gh-repos/rename ()
   "Renaming the repo should update remote url."
   (tests-magit-gh-repos-setup
    (let ((orig-repo (gh-repos-repo "repo" :clone-url "http://google.com/"))

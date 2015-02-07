@@ -38,6 +38,12 @@
 
 (defconst api (gh-repos-api "*api*"))
 
+(defcustom url-slot :ssh-url
+  "Which URL slot to use for adding remotes."
+  :type '(radio (const :tag "HTTPS" :clone-url)
+          (const :tag "GIT" :git-url)
+          (const :tag "SSH" :ssh-url)))
+
 (defcustom formatters 
   '((format "name: %s" (or name "(empty)"))
     (format "description: %s" (or description "(empty)"))
@@ -93,7 +99,11 @@
   "Function for `magit-gh-repos-user-repos' to use for switching buffers.")
 
 (defun user-repos (username &optional switch-function)
-  (interactive "MForks for user: ")
+  (interactive (list (let* ((default (gh-api-get-username api))
+                            (answer (magit-completing-read 
+                                     "Show repos owned by user" 
+                                     nil nil nil nil nil default)))
+                       (if (string-empty-p answer) default answer))))
   (magit-mode-setup 
    (format magit-gh-repos-user-repos-buffer-name username)
    (or switch-function magit-gh-repos-user-repos-switch-function)
@@ -139,7 +149,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
 
 (defun add-remote-to-repo (repo)
   ;; Extracted so the commands can bypass name resolution
-  (let* ((url (oref repo :clone-url))
+  (let* ((url (slot-value repo url-slot))
          (remotes (get-remotes))
          (remote "origin"))
     (unless (rassoc url remotes)
@@ -168,7 +178,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
          (resp (gh-repos-repo-delete api (oref repo :name))))
     (unless (= 204 (oref resp :http-status))
       (error (cdr (assq 'status-string (oref resp :headers)))))
-    (let ((remote (get-remotes (oref repo :clone-url))))
+    (let ((remote (get-remotes (slot-value repo url-slot))))
       (when remote (magit-remove-remote (car remote))))))
 
 (defun fork-repo (name &optional org)
@@ -185,10 +195,10 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
          (resp (gh-repos-repo-rename api repo new-name)))
     (unless (= 200 (oref resp :http-status))
       (error (cdr (assq 'status-string (oref resp :headers)))))
-    (let ((remote (get-remotes (oref repo :clone-url))))
+    (let ((remote (get-remotes (slot-value repo url-slot))))
       (when remote (magit-git-success
                     (list "remote" "set-url" (car remote) 
-                          (oref (oref resp :data) :clone-url))))))))
+                          (slot-value (oref resp :data) url-slot))))))))
 
 (provide 'magit-gh-repos)
 
