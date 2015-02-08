@@ -46,6 +46,7 @@
 (magit-key-mode-insert-action 'github "R" "Repos"
                               #'magit-key-mode-popup-gh-repos)
 
+(define-derived-mode magit-gh-repos-mode magit-mode "Github Repos")
 
 (define-namespace magit-gh-repos-
 :assume-var-quote
@@ -125,11 +126,13 @@
   (magit-mode-setup 
    (format magit-gh-repos-user-repos-buffer-name username)
    (or switch-function magit-gh-repos-user-repos-switch-function)
-   'magit-mode (lambda (username) 
-                 (magit-gh-repos-display-list
-                  (oref (gh-repos-user-list magit-gh-repos-api username) :data)
-                  (format "%s's repos" username))) username))
+   'magit-gh-repos-mode
+   (lambda (username) 
+     (magit-gh-repos-display-list
+      (oref (gh-repos-user-list magit-gh-repos-api username) :data)
+      (format "%s's repos" username))) username))
 
+(define-key magit-gh-repos-mode-map "u" #'user-repos)
 (magit-key-mode-insert-action 'gh-repos "u" "List User Repos" #'user-repos)
 
 (defcustom forks-list-buffer-name "%s's repos"
@@ -144,11 +147,13 @@
     (magit-mode-setup 
      (format magit-gh-repos-forks-list-buffer-name (oref repo full-name))
      (or switch-function magit-gh-repos-forks-list-switch-function)
-     'magit-mode (lambda (repo) 
-                   (magit-gh-repos-display-list
-                    (oref (gh-repos-forks-list magit-gh-repos-api repo) :data)
-                    (format "%s's forks" (oref repo full-name)))) repo)))
+     'magit-gh-repos-mode
+     (lambda (repo) 
+       (magit-gh-repos-display-list
+        (oref (gh-repos-forks-list magit-gh-repos-api repo) :data)
+        (format "%s's forks" (oref repo full-name)))) repo)))
 
+(define-key magit-gh-repos-mode-map "F" #'forks-list)
 (magit-key-mode-insert-action 'gh-repos "F" "List Repo's Forks" #'forks-list)
 
 ;; Basic Commands
@@ -168,6 +173,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
   (interactive "MAdd remote to repo: ") ;
   (add-remote-to-repo (get-repo-by-name name)))
 
+(define-key magit-gh-repos-mode-map "R" #'add-remote)
 (magit-key-mode-insert-action 'gh-repos "R" "Add Repo as a Remote" #'add-remote)
 
 (defun add-remote-to-repo (repo)
@@ -195,6 +201,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
       (error (cdr (assq 'status-string (oref resp :headers)))))
     (add-remote-to-repo (oref resp :data))))
 
+(define-key magit-gh-repos-mode-map "c" #'create-repo)
 (magit-key-mode-insert-action 'gh-repos "c" "Create Repo" #'create-repo)
 
 (defun delete-repo (name)
@@ -206,6 +213,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
     (let ((remote (get-remotes (slot-value repo url-slot))))
       (when remote (magit-remove-remote (car remote))))))
 
+(define-key magit-gh-repos-mode-map "d" #'delete-repo)
 (magit-key-mode-insert-action 'gh-repos "d" "Delete Repo" #'delete-repo)
 
 (defun fork-repo (name &optional org)
@@ -216,6 +224,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
       (error (cdr (assq 'status-string (oref resp :headers)))))
     (add-remote-to-repo (oref resp :data))))
 
+(define-key magit-gh-repos-mode-map "f" #'fork-repo)
 (magit-key-mode-insert-action 'gh-repos "f" "Fork Repo" #'fork-repo)
 
 (defun rename-repo (name new-name)
@@ -229,6 +238,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
                     (list "remote" "set-url" (car remote) 
                           (slot-value (oref resp :data) url-slot)))))))
 
+(define-key magit-gh-repos-mode-map "r" #'rename-repo)
 (magit-key-mode-insert-action 'gh-repos "r" "Rename Repo" #'rename-repo)
 
 (defun edit-repo (name)
@@ -236,6 +246,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
   (let ((repo (get-repo-by-name name)))
     (customize-object (magit-gh-repos-editable-repo repo))))
 
+(define-key magit-gh-repos-mode-map "e" #'edit-repo)
 (magit-key-mode-insert-action 'gh-repos "e" "Edit Repo" #'edit-repo))
 
 
