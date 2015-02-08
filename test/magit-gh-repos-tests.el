@@ -1,6 +1,5 @@
 (require 'ert)
 (require 'noflet)
-(require 'magit-gh-repos)
 
 (defmacro tests-magit-gh-repos-setup (&rest body) 
   (declare (debug body))

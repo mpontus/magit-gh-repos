@@ -5,7 +5,7 @@
 ;; Author: Michael Pontus <m.pontus@gmail.com>
 ;; Keywords:
 ;; Version: 0.1
-;; Package-Requires: ((magit "1.2.2") (gh "0.8.2") (names 0.5"))
+;; Package-Requires: ((emacs "24.4") (magit "1.2.2") (gh "0.8.2") (names "0.5"))
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -107,7 +107,7 @@
                             (answer (magit-completing-read 
                                      "Show repos owned by user" 
                                      nil nil nil nil nil default)))
-                       (if (string-empty-p answer) default answer))))
+                       (if (string= "" answer) default answer))))
   (magit-mode-setup 
    (format magit-gh-repos-user-repos-buffer-name username)
    (or switch-function magit-gh-repos-user-repos-switch-function)
@@ -142,8 +142,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
     (let* ((lines (magit-git-lines "remote" "-v"))
            (chunks (mapcar 'split-string lines))
            (alist (mapcar 'butlast chunks)))
-      (mapc (lambda (c) (setcdr c (cadr c)))
-            (delete-duplicates alist))
+      (mapc (lambda (c) (setcdr c (cadr c))) alist)
       (if url (rassoc url alist) alist))))
 
 (defun add-remote (name)
