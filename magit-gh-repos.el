@@ -29,8 +29,11 @@
 (require 'ewoc)
 (require 'magit)
 (require 'gh-repos)
+
 (eval-when-compile
-  (require 'names))
+  (require 'names)
+  (unless (fboundp 'names--convert-defvar-local)
+    (defalias 'names--convert-defvar-local 'names--convert-defvar)))
 
 (define-namespace magit-gh-repos-
 :assume-var-quote
@@ -39,8 +42,7 @@
 
 (defconst api (gh-repos-api "*api*"))
 
-(defvar ewoc nil)
-(make-variable-buffer-local 'ewoc)
+(defvar-local ewoc nil)
 
 (defcustom url-slot :ssh-url
   "Which URL slot to use for adding remotes."
