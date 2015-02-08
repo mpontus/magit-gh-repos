@@ -33,10 +33,14 @@
   (require 'names))
 
 (define-namespace magit-gh-repos-
+:assume-var-quote
 :package magit-gh-repos
 :group magit-gh-repos
 
 (defconst api (gh-repos-api "*api*"))
+
+(defvar ewoc nil)
+(make-variable-buffer-local 'ewoc)
 
 (defcustom url-slot :ssh-url
   "Which URL slot to use for adding remotes."
@@ -80,9 +84,9 @@
   "Each form produces descendant section in repo output. ")
 
 (defun display-list (items &optional title)
-  (let ((ewoc (ewoc-create #'display-item nil nil 'nosep)))
-    (magit-with-section (section section nil title)
-      (mapc (apply-partially 'ewoc-enter-last ewoc) items))))
+  (setq ewoc (ewoc-create #'display-item nil nil 'nosep))
+  (magit-with-section (section section nil title)
+    (mapc (apply-partially 'ewoc-enter-last ewoc) items)))
 
 (defun display-item (entry)
   (let ((context (mapcar (lambda (s) (cons s (slot-value entry s)))
