@@ -198,7 +198,62 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
     (let ((remote (get-remotes (slot-value repo url-slot))))
       (when remote (magit-git-success
                     (list "remote" "set-url" (car remote) 
-                          (slot-value (oref resp :data) url-slot))))))))
+                          (slot-value (oref resp :data) url-slot)))))))
+
+(defun edit-repo (name)
+  (interactive "MEdit repo: ")
+  (let ((repo (get-repo-by-name name)))
+    (customize-object (magit-gh-repos-editable-repo repo)))))
+
+(defclass magit-gh-repos-editable-repo (gh-repos-repo-stub)
+  ((name :initarg :name :custom string)
+   (description :initarg :description :custom string)
+   (homepage :initarg :homepage :custom string)
+   (private :initarg :private :custom boolean)
+   (has-issues :initarg :has-issues :custom boolean)
+   (has-wiki :initarg :has-wiki :custom boolean)
+   (has-downloads :initarg :has-downloads :custom boolean)
+   (repo :initarg :repo))
+  "Another class for GitHub repositories")
+
+(defmethod constructor :static ((cls magit-gh-repos-editable-repo) repo)
+  (let* ((editable-repo 
+          (call-next-method 'magit-gh-repos-editable-repo (object-name repo))))
+    (with-slots (name description homepage private 
+                      has-issues has-wiki has-downloads)
+        editable-repo
+      (setq name (oref repo :name)
+            description (oref repo :description)
+            homepage (oref repo :homepage)
+            private (eq (oref repo :private) :json-true))
+      (when (object-of-class-p repo 'gh-repos-repo)
+        (setq has-issues (oref repo :has-issues)
+              has-wiki (oref repo :has-wiki)
+              has-downloads (oref repo :has-downloads))))
+    (oset editable-repo :repo repo)
+    editable-repo))
+
+(defmethod eieio-done-customizing ((repo magit-gh-repos-editable-repo))
+  (let* ((orig (oref repo :repo))
+         (old-name (oref orig :name))
+         (new-name (oref repo :name)))
+    (unless (equal old-name new-name)
+      (magit-gh-repos-rename-repo old-name new-name))) 
+  (with-slots (name description homepage private 
+                    has-issues has-wiki has-downloads)
+      (oref repo :repo)
+    (setq name (oref repo :name)
+          description (oref repo :description)
+          homepage (oref repo :homepage)
+          private (if (oref repo :private) :json-true :json-false))
+    (when (object-of-class-p (oref repo :repo) 'gh-repos-repo)
+      (setq has-issues (oref repo :has-issues)
+            has-wiki (oref repo :has-wiki)
+            has-downloads (oref repo :has-downloads))))
+  (gh-repos-repo-update magit-gh-repos-api (oref repo :repo) nil
+                        :issues (oref repo :has-issues)
+                        :wiki (oref repo :has-wiki)
+                        :downloads (oref repo :has-downloads)))
 
 (provide 'magit-gh-repos)
 

@@ -246,3 +246,57 @@
        (catch 'ok (magit-gh-repos-rename-repo "foo" "bar")
               (throw 'fail "Remote url hasn't changed!"))))))
 
+
+(ert-deftest tests-magit-gh-repos/edit ()
+  "Should use eieio customizing interface to customize object."
+  (let* ((repo (gh-repos-repo "repo" :name "foo" :description "bar"
+                              :private :json-false :has-issues t
+                              :has-wiki t :has-downloads t)))
+    (noflet ((magit-gh-repos-get-repo-by-name (name)
+               (should (string= "foo" name)) repo)
+             (customize-object (editable-repo)
+               (if (and (eq repo (oref editable-repo :repo))
+                        (string= "foo" (oref editable-repo :name))
+                        (string= "bar" (oref editable-repo :description))
+                        (eq nil (oref editable-repo :private))
+                        (eq t (oref editable-repo :has-issues))
+                        (eq t (oref editable-repo :has-wiki))
+                        (eq t (oref editable-repo :has-downloads))) 
+                   (throw 'ok nil)
+                   (throw 'fail "Wrong original repo or parameters."))))
+      (catch 'ok (magit-gh-repos-edit-repo "foo")
+             (throw 'fail "Did not call `customize-object'.")))))
+
+(ert-deftest tests-magit-gh-repos/edit-1 ()
+  "Should rename the repo"
+  (let* ((orig-repo (gh-repos-repo "repo" :name "foo"))
+         (editable-repo (magit-gh-repos-editable-repo orig-repo)))
+    (oset editable-repo :name "bar")
+    (noflet ((magit-gh-repos-rename-repo (old-name new-name)
+               (if (and (string= "foo" old-name)
+                        (string= "bar" new-name)) (throw 'ok nil)
+                        (throw 'fail "Wrong repo or name"))))
+      (catch 'ok (eieio-done-customizing editable-repo)
+             (throw 'fail "Repo was not renamed.")))))
+
+(ert-deftest tests-magit-gh-repos/edit-2 ()
+  "Should update the repo"
+  (let* ((repo (gh-repos-repo "repo" :name "foo" :description "bar"
+                              :private :json-false :has-issues t
+                              :has-wiki t :has-downloads t))
+         (editable-repo (magit-gh-repos-editable-repo repo)))
+    (oset editable-repo :description "baz")
+    (oset editable-repo :private t)
+    (oset editable-repo :has-issues nil)
+    (oset editable-repo :has-wiki nil)
+    (oset editable-repo :has-downloads nil)
+    (noflet ((gh-repos-repo-update (api repo &optional user &rest caps)
+               (if (and (string= "baz" (oref repo :description))
+                        (eq :json-true (oref repo :private))
+                        (eq nil (plist-get caps :issues))
+                        (eq nil (plist-get caps :wiki))
+                        (eq nil (plist-get caps :downloads)))
+                   (throw 'ok nil)
+                   (throw 'fail "Wrong update parameters"))))
+      (catch 'ok (eieio-done-customizing editable-repo)
+             (throw 'fail "Did not update the repo.")))))
