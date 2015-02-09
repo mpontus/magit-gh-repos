@@ -4,6 +4,7 @@
 (defmacro tests-magit-gh-repos-setup (&rest body) 
   (declare (debug body))
   `(noflet ((magit-git-lines (&rest args))
+            (magit-get-top-dir (&optional dir) (or dir ""))
             (url-retrieve (&rest args))
             (url-retrieve-synchronously (&rest args)))
      (let ((magit-gh-repos-formatters '(name))
@@ -123,6 +124,41 @@
     (catch 'ok (magit-gh-repos-read-repo-name "Prompt")
            (throw 'fail "Did not call `magit-completing-read'"))))
 
+(ert-deftest test-magit-gh-repos/read-top-dir ()
+  "Should dispatch return value of `magit-get-top-dir' without prefix arg."
+  (let ((symbol (make-symbol "symbol")))
+    (noflet ((magit-get-top-dir (&rest args) symbol))
+      (should (eq symbol (magit-gh-repos-read-top-dir))))))
+
+(ert-deftest test-magit-gh-repos/read-top-dir-1 ()
+  "Should ask for top directory with prefix argument."
+  (noflet ((magit-read-top-dir (dir)
+             (if (not dir) (throw 'ok nil)
+                 (throw 'fail
+                   "Should have called `magit-read-top-dir' with negative argument."))))
+    (catch 'ok (let ((current-prefix-arg '(4)))
+                 (magit-gh-repos-read-top-dir))
+           (throw 'fail "Did not ask for top dir."))))
+
+(ert-deftest test-magit-gh-repos/read-top-dir-2 ()
+  "Should call `magit-read-top-dir' with positive argument when prefix argument > 4."
+  (noflet ((magit-read-top-dir (dir)
+             (if dir (throw 'ok nil)
+                 (throw 'fail
+                   "Should have called `magit-read-top-dir' with positive argument."))))
+    (catch 'ok (let ((current-prefix-arg 8))
+                 (magit-gh-repos-read-top-dir))
+           (throw 'fail "Did not ask for top dir."))))
+
+(ert-deftest test-magit-gh-repos/read-top-dir-3 ()
+  "Should offer to create new repository with prefix argument."
+  (noflet ((magit-read-top-dir (&rest args))
+           (magit-get-top-dir (&rest args))
+           (yes-or-no-p (&rest args) (throw 'ok nil)))
+    (catch 'ok (let ((current-prefix-arg '(4)))
+                 (magit-gh-repos-read-top-dir))
+           (throw 'fail "Did not offer to create new repository."))))
+
 (ert-deftest tests-magit-gh-repos/add-remote ()
   "Test adding repo as a remote."
   (tests-magit-gh-repos-setup
@@ -179,7 +215,7 @@
               (magit-add-remote (remote url)
                 (if (string= "http://github.com/" url) (throw 'ok nil)
                     (throw 'fail "Adding remote for wrong repo."))))
-       (catch 'ok (magit-gh-repos-create-repo "foo")
+       (catch 'ok (magit-gh-repos-create-repo "foo" "/")
               (throw 'fail "Did not add remote."))))))
 
 (ert-deftest tests-magit-gh-repos/delete-repo ()
@@ -210,7 +246,7 @@
               (magit-remove-remote (remote &rest args) 
                 (cond ((string= "github" remote) (throw 'ok nil))
                       (t (throw 'fail "Removing wrong remote.")))))
-       (catch 'ok (magit-gh-repos-delete-repo "foo")
+       (catch 'ok (magit-gh-repos-delete-repo "foo" "/")
               (throw 'fail "Did not remove remote."))))))
 
 (ert-deftest tests-magit-gh-repos/fork-repo ()
@@ -229,7 +265,7 @@
               (magit-add-remote (remote url)
                 (if (string= url "http://github.com/fork/") (throw 'ok nil)
                     (throw 'fail "Adding wrong url as remote."))))
-       (catch 'ok (magit-gh-repos-fork-repo "foobar")
+       (catch 'ok (magit-gh-repos-fork-repo "foobar" "/")
               (throw 'fail "Repo wasn't added as a remote."))))))
 
 (ert-deftest tests-magit-gh-repos/forks-list ()
@@ -272,7 +308,7 @@
               (magit-git-success (args)
                 (if (equal args '("remote" "set-url" "test" "http://github.com/")) 
                     (throw 'ok nil) (throw 'fail "Wrong arguments!"))))
-       (catch 'ok (magit-gh-repos-rename-repo "foo" "bar")
+       (catch 'ok (magit-gh-repos-rename-repo "foo" "bar" "/")
               (throw 'fail "Remote url hasn't changed!"))))))
 
 (ert-deftest tests-magit-gh-repos/rename-1 ()

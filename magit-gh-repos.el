@@ -208,56 +208,75 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
     (magit-completing-read prompt collection nil nil nil 
                            'read-repo-name-history default)))
 
-(defun create-repo (name)
-  (interactive (list (read-repo-name "Create new repo")))
+(defun read-top-dir ()
+  (if current-prefix-arg 
+      (let ((dir (magit-read-top-dir
+                  (> (prefix-numeric-value current-prefix-arg)
+                     4))))
+        (when (and (not (magit-get-top-dir dir))
+                   (yes-or-no-p
+                    (format "There is no Git repository in %s.  Create one? "
+                            dir))) (magit-init dir)) dir)
+      (magit-get-top-dir)))
+
+(defun create-repo (name &optional top-dir)
+  (interactive (list (read-repo-name "Create new repo") (read-top-dir)))
   (let* ((repo (gh-repos-repo-stub "repo" :name name))
          (resp (gh-repos-repo-new api repo)))
     (unless (= 201 (oref resp :http-status))
       (user-error (cdr (assq 'status-string (oref resp :headers)))))
-    (add-remote-to-repo (oref resp :data))))
+    (let ((default-directory default-directory))
+      (when (and top-dir (setq default-directory (magit-get-top-dir top-dir)))
+        (add-remote-to-repo (oref resp :data))))))
 
 (define-key magit-gh-repos-mode-map "c" #'create-repo)
 (magit-key-mode-insert-action 'gh-repos "c" "Create Repo" #'create-repo)
 
-(defun delete-repo (name)
-  (interactive (list (read-repo-name "Delete repo")))
+(defun delete-repo (name &optional top-dir)
+  (interactive (list (read-repo-name "Delete repo") (read-top-dir)))
   (let* ((repo (get-repo-by-name name))
          (resp (gh-repos-repo-delete api (oref repo :name))))
     (unless (= 204 (oref resp :http-status))
       (user-error (cdr (assq 'status-string (oref resp :headers)))))
-    (let ((remote (get-remotes (slot-value repo url-slot))))
-      (when remote (magit-remove-remote (car remote))))))
+    (let ((default-directory default-directory))
+      (when (and top-dir (setq default-directory (magit-get-top-dir top-dir)))
+        (let ((remote (get-remotes (slot-value repo url-slot))))
+          (when remote (magit-remove-remote (car remote))))))))
 
 (define-key magit-gh-repos-mode-map "d" #'delete-repo)
 (magit-key-mode-insert-action 'gh-repos "d" "Delete Repo" #'delete-repo)
 
-(defun fork-repo (name &optional org)
-  (interactive (list (read-repo-name "Fork repo")))
+(defun fork-repo (name &optional top-dir)
+  (interactive (list (read-repo-name "Fork repo") (read-top-dir)))
   (let* ((repo (get-repo-by-name name))
          (resp (gh-repos-fork api repo)))
     (unless (= 202 (oref resp :http-status))
       (user-error (cdr (assq 'status-string (oref resp :headers)))))
-    (add-remote-to-repo (oref resp :data))))
+    (let ((default-directory default-directory))
+      (when (and top-dir (setq default-directory (magit-get-top-dir top-dir)))
+        (add-remote-to-repo (oref resp :data))))))
 
 (define-key magit-gh-repos-mode-map "f" #'fork-repo)
 (magit-key-mode-insert-action 'gh-repos "f" "Fork Repo" #'fork-repo)
 
-(defun rename-repo (name new-name)
+(defun rename-repo (name new-name &optional top-dir)
   (interactive
    (let* ((name (read-repo-name "Rename repo"))
           (new-name
            (read-string (format "New name (default %s): " name) 
                         name 'read-repo-name-history name)))
-     (list name new-name)))
+     (list name new-name (read-top-dir))))
   (unless (string= name new-name)
     (let* ((repo (get-repo-by-name name))
            (resp (gh-repos-repo-rename api repo new-name)))
       (unless (= 200 (oref resp :http-status))
         (user-error (cdr (assq 'status-string (oref resp :headers)))))
-      (let ((remote (get-remotes (slot-value repo url-slot))))
-        (when remote (magit-git-success
-                      (list "remote" "set-url" (car remote) 
-                            (slot-value (oref resp :data) url-slot))))))))
+      (let ((default-directory default-directory))
+        (when (and top-dir (setq default-directory (magit-get-top-dir top-dir)))
+          (let ((remote (get-remotes (slot-value repo url-slot))))
+            (when remote (magit-git-success
+                          (list "remote" "set-url" (car remote) 
+                                (slot-value (oref resp :data) url-slot))))))))))
 
 (define-key magit-gh-repos-mode-map "r" #'rename-repo)
 (magit-key-mode-insert-action 'gh-repos "r" "Rename Repo" #'rename-repo)
