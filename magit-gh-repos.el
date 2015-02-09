@@ -38,13 +38,15 @@
 (unless (assoc 'github magit-key-mode-groups)
   (magit-key-mode-add-group 'github)
   (magit-key-mode-generate 'github)
-  (magit-key-mode-insert-action 'dispatch "G" "Github"
-                                #'magit-key-mode-popup-github))
+  (ignore-errors
+    (magit-key-mode-insert-action 'dispatch "G" "Github"
+                                  #'magit-key-mode-popup-github)))
 
 (magit-key-mode-add-group 'gh-repos)
 (magit-key-mode-generate 'gh-repos)
-(magit-key-mode-insert-action 'github "R" "Repos"
-                              #'magit-key-mode-popup-gh-repos)
+(ignore-errors
+  (magit-key-mode-insert-action 'github "R" "Repos"
+                                #'magit-key-mode-popup-gh-repos))
 
 (define-derived-mode magit-gh-repos-mode magit-mode "Github Repos")
 
