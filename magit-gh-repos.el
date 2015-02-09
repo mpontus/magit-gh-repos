@@ -160,12 +160,11 @@
 (defun get-remotes (&optional url)
   "When URL is specified returns matching alist entry.
 Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
-  (noflet ((magit-gh-repos-draw-entry (entry)))
-    (let* ((lines (magit-git-lines "remote" "-v"))
-           (chunks (mapcar 'split-string lines))
-           (alist (mapcar 'butlast chunks)))
-      (mapc (lambda (c) (setcdr c (cadr c))) alist)
-      (if url (rassoc url alist) alist))))
+  (let* ((lines (magit-git-lines "remote" "-v"))
+         (chunks (mapcar 'split-string lines))
+         (alist (mapcar 'butlast chunks)))
+    (mapc (lambda (c) (setcdr c (cadr c))) alist)
+    (if url (rassoc url alist) alist)))
 
 (defun add-remote (name)
   "Add a repo referenced by NAME as remote."
