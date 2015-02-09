@@ -46,9 +46,9 @@
   "Should create ewoc object and assign it to buffer-local variable."
   (let ((repo (gh-repos-repo "repo" :name "foo")))
     (magit-gh-repos-display-list (list repo))
-    (should (bound-and-true-p magit-gh-repos-ewoc))
-    (should (local-variable-p 'magit-gh-repos-ewoc))
-    (should (eq repo (ewoc-data (ewoc-nth magit-gh-repos-ewoc 0))))))
+    (let ((ewoc (magit-section-info magit-root-section)))
+      (should (bound-and-true-p ewoc))
+      (should (eq repo (ewoc-data (ewoc-nth ewoc 0)))))))
 
 (ert-deftest tests-magit-gh-repos/configurable ()
   "Should be able to configure output format."

@@ -57,8 +57,6 @@
 
 (defconst api (gh-repos-api "*api*"))
 
-(defvar-local ewoc nil)
-
 (defcustom url-slot :ssh-url
   "Which URL slot to use for adding remotes."
   :type '(radio (const :tag "HTTPS" :clone-url)
@@ -101,9 +99,9 @@
   "Each form produces descendant section in repo output. ")
 
 (defun display-list (items &optional title)
-  (setq ewoc (ewoc-create #'display-item nil nil 'nosep))
-  (magit-with-section (section section nil title)
-    (mapc (apply-partially 'ewoc-enter-last ewoc) items)))
+  (let ((ewoc (ewoc-create #'display-item nil nil 'nosep)))
+    (magit-with-section (section section ewoc title)
+      (mapc (apply-partially 'ewoc-enter-last ewoc) items))))
 
 (defun display-item (entry)
   (let ((context (mapcar (lambda (s) (cons s (slot-value entry s)))
