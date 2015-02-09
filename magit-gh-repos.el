@@ -108,8 +108,7 @@
                          (object-slots entry)))) 
     (magit-with-section (section section)
       (dolist (form formatters)
-        (magit-with-section (section section)
-          (insert (eval form context) ?\n))))))
+        (insert (eval form context) ?\n)))))
 
 (defcustom user-repos-buffer-name "%s's repos"
   "Format for `magit-gh-repos-user-repos' buffer name.")
