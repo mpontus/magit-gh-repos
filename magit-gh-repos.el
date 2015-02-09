@@ -106,7 +106,7 @@
 (defun display-item (entry)
   (let ((context (mapcar (lambda (s) (cons s (slot-value entry s)))
                          (object-slots entry)))) 
-    (magit-with-section (section section)
+    (magit-with-section (section section entry)
       (dolist (form formatters)
         (insert (eval form context) ?\n)))))
 
@@ -141,7 +141,7 @@
   "Function for `magit-gh-repos-forks-list' to use for switching buffers.")
 
 (defun forks-list (repo-name &optional recursive switch-function)
-  (interactive "MForks for repo: ")
+  (interactive (list (read-repo-name "Forks for repo")))
   (let ((repo (get-repo-by-name repo-name))) 
     (magit-mode-setup 
      (format magit-gh-repos-forks-list-buffer-name (oref repo full-name))
@@ -169,7 +169,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
 
 (defun add-remote (name)
   "Add a repo referenced by NAME as remote."
-  (interactive "MAdd remote to repo: ") ;
+  (interactive (list (read-repo-name "Add remote to repo"))) ;
   (add-remote-to-repo (get-repo-by-name name)))
 
 (define-key magit-gh-repos-mode-map "R" #'add-remote)
@@ -192,8 +192,25 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
       (error (cdr (assq 'status-string (oref resp :headers)))))
     (oref resp :data)))
 
+(defvar read-repo-name-history)
+
+(defun read-repo-name (prompt)
+  (let (collection default)
+    (let ((info (and magit-root-section 
+                     (magit-section-info magit-root-section))))
+      (when (ewoc-p info) 
+        (setq collection
+              (mapcar (lambda (repo) (oref repo :name)) 
+                      (ewoc-collect info 'gh-repos-repo-p)))
+        (let* ((current (magit-current-section))
+               (info (and current (magit-section-info current))))
+          (when (gh-repos-repo-p info)
+            (setq default (oref info :name))))))
+    (magit-completing-read prompt collection nil nil nil 
+                           'read-repo-name-history default)))
+
 (defun create-repo (name)
-  (interactive "MCreate new repo: ")
+  (interactive (list (read-repo-name "Create new repo")))
   (let* ((repo (gh-repos-repo-stub "repo" :name name))
          (resp (gh-repos-repo-new api repo)))
     (unless (= 201 (oref resp :http-status))
@@ -204,7 +221,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
 (magit-key-mode-insert-action 'gh-repos "c" "Create Repo" #'create-repo)
 
 (defun delete-repo (name)
-  (interactive "MDelete repo: ")
+  (interactive (list (read-repo-name "Delete repo")))
   (let* ((repo (get-repo-by-name name))
          (resp (gh-repos-repo-delete api (oref repo :name))))
     (unless (= 204 (oref resp :http-status))
@@ -216,7 +233,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
 (magit-key-mode-insert-action 'gh-repos "d" "Delete Repo" #'delete-repo)
 
 (defun fork-repo (name &optional org)
-  (interactive "MFork repo: ")
+  (interactive (list (read-repo-name "Fork repo")))
   (let* ((repo (get-repo-by-name name))
          (resp (gh-repos-fork api repo)))
     (unless (= 202 (oref resp :http-status))
@@ -227,7 +244,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
 (magit-key-mode-insert-action 'gh-repos "f" "Fork Repo" #'fork-repo)
 
 (defun rename-repo (name new-name)
-  (interactive "MRename repo: ")
+  (interactive (list (read-repo-name "Rename repo")))
   (let* ((repo (get-repo-by-name name))
          (resp (gh-repos-repo-rename api repo new-name)))
     (unless (= 200 (oref resp :http-status))
@@ -241,7 +258,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
 (magit-key-mode-insert-action 'gh-repos "r" "Rename Repo" #'rename-repo)
 
 (defun edit-repo (name)
-  (interactive "MEdit repo: ")
+  (interactive (list (read-repo-name "Edit repo")))
   (let ((repo (get-repo-by-name name)))
     (customize-object (magit-gh-repos-editable-repo repo))))
 

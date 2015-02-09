@@ -101,6 +101,28 @@
                     (throw 'fail "Invalid name."))))
        (should (eq repo (magit-gh-repos-get-repo-by-name "test")))))))
 
+(ert-deftest tests-magit-gh-repos/read-repo-name ()
+  "Should provide completions for repos in the buffer."
+  (magit-gh-repos-display-list 
+   (list (gh-repos-repo "repo" :name "foo")
+         (gh-repos-repo "repo" :name "bar")))
+  (noflet ((magit-completing-read (prompt collection &rest args)
+             (if (equal '("foo" "bar") collection) (throw 'ok nil)
+                 (throw 'fail "Wrong completions."))))
+    (catch 'ok (magit-gh-repos-read-repo-name "Prompt")
+           (throw 'fail "Did not call `magit-completing-read'"))))
+
+(ert-deftest tests-magit-gh-repos/read-repo-name-1 ()
+  "Should default to the name of repo under cursor."
+  (magit-gh-repos-display-list 
+   (list (gh-repos-repo "repo" :name "foo")
+         (gh-repos-repo "repo" :name "bar")))
+  (noflet ((magit-completing-read (&rest args)
+             (if (string= "foo" (car (last args))) (throw 'ok nil)
+                 (throw 'fail "Wrong default value."))))
+    (catch 'ok (magit-gh-repos-read-repo-name "Prompt")
+           (throw 'fail "Did not call `magit-completing-read'"))))
+
 (ert-deftest tests-magit-gh-repos/add-remote ()
   "Test adding repo as a remote."
   (tests-magit-gh-repos-setup
