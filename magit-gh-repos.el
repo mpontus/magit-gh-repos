@@ -188,7 +188,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
 (defun get-repo-by-name (name)
   (let ((resp (gh-repos-repo-get api name)))
     (unless (= 200 (oref resp :http-status))
-      (error (cdr (assq 'status-string (oref resp :headers)))))
+      (user-error (cdr (assq 'status-string (oref resp :headers)))))
     (oref resp :data)))
 
 (defvar read-repo-name-history)
@@ -213,7 +213,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
   (let* ((repo (gh-repos-repo-stub "repo" :name name))
          (resp (gh-repos-repo-new api repo)))
     (unless (= 201 (oref resp :http-status))
-      (error (cdr (assq 'status-string (oref resp :headers)))))
+      (user-error (cdr (assq 'status-string (oref resp :headers)))))
     (add-remote-to-repo (oref resp :data))))
 
 (define-key magit-gh-repos-mode-map "c" #'create-repo)
@@ -224,7 +224,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
   (let* ((repo (get-repo-by-name name))
          (resp (gh-repos-repo-delete api (oref repo :name))))
     (unless (= 204 (oref resp :http-status))
-      (error (cdr (assq 'status-string (oref resp :headers)))))
+      (user-error (cdr (assq 'status-string (oref resp :headers)))))
     (let ((remote (get-remotes (slot-value repo url-slot))))
       (when remote (magit-remove-remote (car remote))))))
 
@@ -236,7 +236,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
   (let* ((repo (get-repo-by-name name))
          (resp (gh-repos-fork api repo)))
     (unless (= 202 (oref resp :http-status))
-      (error (cdr (assq 'status-string (oref resp :headers)))))
+      (user-error (cdr (assq 'status-string (oref resp :headers)))))
     (add-remote-to-repo (oref resp :data))))
 
 (define-key magit-gh-repos-mode-map "f" #'fork-repo)
@@ -253,7 +253,7 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
     (let* ((repo (get-repo-by-name name))
            (resp (gh-repos-repo-rename api repo new-name)))
       (unless (= 200 (oref resp :http-status))
-        (error (cdr (assq 'status-string (oref resp :headers)))))
+        (user-error (cdr (assq 'status-string (oref resp :headers)))))
       (let ((remote (get-remotes (slot-value repo url-slot))))
         (when remote (magit-git-success
                       (list "remote" "set-url" (car remote) 
