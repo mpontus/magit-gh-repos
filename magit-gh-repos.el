@@ -243,15 +243,21 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
 (magit-key-mode-insert-action 'gh-repos "f" "Fork Repo" #'fork-repo)
 
 (defun rename-repo (name new-name)
-  (interactive (list (read-repo-name "Rename repo")))
-  (let* ((repo (get-repo-by-name name))
-         (resp (gh-repos-repo-rename api repo new-name)))
-    (unless (= 200 (oref resp :http-status))
-      (error (cdr (assq 'status-string (oref resp :headers)))))
-    (let ((remote (get-remotes (slot-value repo url-slot))))
-      (when remote (magit-git-success
-                    (list "remote" "set-url" (car remote) 
-                          (slot-value (oref resp :data) url-slot)))))))
+  (interactive
+   (let* ((name (read-repo-name "Rename repo"))
+          (new-name
+           (read-string (format "New name (default %s): " name) 
+                        name 'read-repo-name-history name)))
+     (list name new-name)))
+  (unless (string= name new-name)
+    (let* ((repo (get-repo-by-name name))
+           (resp (gh-repos-repo-rename api repo new-name)))
+      (unless (= 200 (oref resp :http-status))
+        (error (cdr (assq 'status-string (oref resp :headers)))))
+      (let ((remote (get-remotes (slot-value repo url-slot))))
+        (when remote (magit-git-success
+                      (list "remote" "set-url" (car remote) 
+                            (slot-value (oref resp :data) url-slot))))))))
 
 (define-key magit-gh-repos-mode-map "r" #'rename-repo)
 (magit-key-mode-insert-action 'gh-repos "r" "Rename Repo" #'rename-repo)

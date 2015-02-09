@@ -275,6 +275,22 @@
        (catch 'ok (magit-gh-repos-rename-repo "foo" "bar")
               (throw 'fail "Remote url hasn't changed!"))))))
 
+(ert-deftest tests-magit-gh-repos/rename-1 ()
+  "Should query for a new name based on original name."
+  (noflet ((magit-gh-repos-read-repo-name (prompt) "foo")
+           (read-string (prompt initial &rest args)
+             (if (string= "foo" initial) (throw 'ok nil)
+                 (throw 'fail "Wrong initial value"))))
+    (catch 'ok (call-interactively 'magit-gh-repos-rename-repo)
+           (throw 'fail "Did not call `read-string'"))))
+
+(ert-deftest tests-magit-gh-repos/rename-2 ()
+  "Should do nothing when new name matches old one."
+  (noflet ((magit-gh-repos-get-repo-by-name (name)
+             (throw 'fail "Should not try to resolve repo by name."))
+           (gh-repos-repo-rename (&rest args)
+             (throw 'fail "Should not try to rename the repo.")))
+    (magit-gh-repos-rename-repo "foo" "foo")))
 
 (ert-deftest tests-magit-gh-repos/edit ()
   "Should use eieio customizing interface to customize object."
