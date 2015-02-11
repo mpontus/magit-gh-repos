@@ -110,6 +110,15 @@
       (dolist (form formatters)
         (insert (eval form context) ?\n)))))
 
+(defmacro mode-setup (buffer switch-func mode refresh-func &rest refresh-args)
+  "Clone of `magit-mode-setup' independent of top-dir."
+  `(with-current-buffer
+       (magit-mode-display-buffer ,buffer ,mode ,switch-func)
+     (setq magit-refresh-function ,refresh-func
+           magit-refresh-args (list ,@refresh-args))
+     (funcall ,mode) 
+     (magit-mode-refresh-buffer)))
+
 (defcustom user-repos-buffer-name "%s's repos"
   "Format for `magit-gh-repos-user-repos' buffer name.")
 
@@ -122,14 +131,15 @@
                                      "Show repos owned by user" 
                                      nil nil nil nil nil default)))
                        (if (string= "" answer) default answer))))
-  (magit-mode-setup 
+  (mode-setup 
    (format magit-gh-repos-user-repos-buffer-name username)
    (or switch-function magit-gh-repos-user-repos-switch-function)
    'magit-gh-repos-mode
    (lambda (username) 
      (magit-gh-repos-display-list
       (oref (gh-repos-user-list magit-gh-repos-api username) :data)
-      (format "%s's repos" username))) username))
+      (format "%s's repos" username))) 
+   username))
 
 (define-key magit-gh-repos-mode-map "u" #'user-repos)
 (magit-key-mode-insert-action 'gh-repos "u" "List User Repos" #'user-repos)
@@ -143,7 +153,7 @@
 (defun forks-list (repo-name &optional recursive switch-function)
   (interactive (list (read-repo-name "Forks for repo")))
   (let ((repo (get-repo-by-name repo-name))) 
-    (magit-mode-setup 
+    (mode-setup 
      (format magit-gh-repos-forks-list-buffer-name (oref repo full-name))
      (or switch-function magit-gh-repos-forks-list-switch-function)
      'magit-gh-repos-mode

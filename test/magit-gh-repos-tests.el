@@ -4,7 +4,7 @@
 (defmacro tests-magit-gh-repos-setup (&rest body) 
   (declare (debug body))
   `(noflet ((magit-git-lines (&rest args))
-            (magit-get-top-dir (&optional dir) (or dir ""))
+            (magit-get-top-dir (&optional dir) dir)
             (url-retrieve (&rest args))
             (url-retrieve-synchronously (&rest args)))
      (let ((magit-gh-repos-formatters '(name))
