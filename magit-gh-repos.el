@@ -59,7 +59,8 @@
 
 (defcustom url-slot :ssh-url
   "Which URL slot to use for adding remotes."
-  :type '(radio (const :tag "HTTPS" :clone-url)
+  :type '(radio 
+          (const :tag "HTTPS" :clone-url)
           (const :tag "GIT" :git-url)
           (const :tag "SSH" :ssh-url)))
 
