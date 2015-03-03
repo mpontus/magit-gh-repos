@@ -47,9 +47,8 @@
   "Should create ewoc object and assign it to buffer-local variable."
   (let ((repo (gh-repos-repo "repo" :name "foo")))
     (magit-gh-repos-display-list (list repo))
-    (let ((ewoc (magit-section-info magit-root-section)))
-      (should (bound-and-true-p ewoc))
-      (should (eq repo (ewoc-data (ewoc-nth ewoc 0)))))))
+    (should (bound-and-true-p ewoc))
+    (should (eq repo (ewoc-data (ewoc-nth ewoc 0)))) ))
 
 (ert-deftest tests-magit-gh-repos/configurable ()
   "Should be able to configure output format."
@@ -159,16 +158,16 @@
                  (magit-gh-repos-read-top-dir))
            (throw 'fail "Did not offer to create new repository."))))
 
-(ert-deftest tests-magit-gh-repos/add-remote ()
+(ert-deftest tests-magit-gh-repos/add-remote-to-repo ()
   "Test adding repo as a remote."
   (tests-magit-gh-repos-setup
    (noflet ((magit-gh-repos-get-repo-by-name (name)
               (gh-repos-repo "repo ":clone-url "http://github.com/"))
             (magit-gh-repos-get-remotes ())
-            (magit-add-remote (remote url)
+            (magit-add-remote-to-repo (remote url)
               (cond ((string= "http://github.com/" url) (throw 'ok nil))
                     (t (throw 'fail "Unexpected repo was added.")))))
-     (catch 'ok (magit-gh-repos-add-remote "foobar")
+     (catch 'ok (magit-gh-repos-add-remote-to-repo "foobar")
             (throw 'fail "Did not add remote!")))))
 
 (ert-deftest tests-magit-gh-repos/add-remote-1 ()
@@ -179,10 +178,10 @@
             (magit-gh-repos-get-remotes (&optional url)
               '(("origin" . "http://google.com")))
             (magit-completing-read (&rest args) "alternative")
-            (magit-add-remote (remote url)
+            (magit-add-remote-to-repo (remote url)
               (cond ((string= "alternative" remote) (throw 'ok nil))
                     (t (throw 'fail "Unexpected remote name.")))))
-     (catch 'ok (magit-gh-repos-add-remote "foobar")
+     (catch 'ok (magit-gh-repos-add-remote-to-repo "foobar")
             (throw 'fail "Did not add remote!")))))
 
 (ert-deftest tests-magit-gh-repos/add-remote-2 ()
@@ -192,9 +191,9 @@
               (gh-repos-repo "repo" :clone-url "http://github.com/"))
             (magit-gh-repos-get-remotes ()
               '(("whatever" . "http://github.com/")))
-            (magit-add-remote (&rest args)
+            (magit-add-remote-to-repo (&rest args)
               (throw 'fail "Should not add duplicates.")))
-     (magit-gh-repos-add-remote "foobar"))))
+     (magit-gh-repos-add-remote-to-repo "foobar"))))
 
 (ert-deftest tests-magit-gh-repos/create-repo ()
   "Test creating a repo."
@@ -212,7 +211,7 @@
      (noflet ((gh-repos-repo-new (&rest args) 
                 (gh-api-response "resp" :data repo
                                  :http-status 201))
-              (magit-add-remote (remote url)
+              (magit-add-remote-to-repo (remote url)
                 (if (string= "http://github.com/" url) (throw 'ok nil)
                     (throw 'fail "Adding remote for wrong repo."))))
        (catch 'ok (magit-gh-repos-create-repo "foo" "/")
@@ -262,7 +261,7 @@
                 (should (eq repo orig-repo))
                 (gh-api-response "resp" :data fork-repo
                                  :http-status 202))
-              (magit-add-remote (remote url)
+              (magit-add-remote-to-repo (remote url)
                 (if (string= url "http://github.com/fork/") (throw 'ok nil)
                     (throw 'fail "Adding wrong url as remote."))))
        (catch 'ok (magit-gh-repos-fork-repo "foobar" "/")
