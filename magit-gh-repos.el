@@ -26,182 +26,43 @@
 
 ;;; Code:
 
-(require 'ewoc)
 (require 'magit)
 (require 'gh-repos)
 
 (eval-when-compile
-  (require 'names)
-  (unless (fboundp 'names--convert-defvar-local)
-    (defalias 'names--convert-defvar-local 'names--convert-defvar)))
-
-(when (fboundp 'magit-key-mode-groups)
-  (unless (assoc 'github magit-key-mode-groups)
-    (magit-key-mode-add-group 'github)
-    (magit-key-mode-generate 'github)
-    (ignore-errors
-      (magit-key-mode-insert-action
-       'dispatch "G" "Github" #'magit-key-mode-popup-github)))
-  (magit-key-mode-add-group 'gh-repos)
-  (magit-key-mode-generate 'gh-repos)
-  (ignore-errors
-    (magit-key-mode-insert-action
-     'github "R" "Repos" #'magit-key-mode-popup-gh-repos)))
-
-
-
-(define-derived-mode magit-gh-repos-mode magit-mode "Github Repos")
+  (require 'names))
 
 (define-namespace magit-gh-repos-
 :assume-var-quote
 :package magit-gh-repos
 :group magit-gh-repos
 
-(when (fboundp 'magit-key-mode-add-group)
-  (magit-key-mode-insert-action 'gh-repos "u" "List User Repos" #'user-repos)
-  (magit-key-mode-insert-action 'gh-repos "F" "List Repo's Forks" #'forks-list)
-  (magit-key-mode-insert-action 'gh-repos "c" "Create Repo" #'create-repo)
-  (magit-key-mode-insert-action 'gh-repos "d" "Delete Repo" #'delete-repo)
-  (magit-key-mode-insert-action 'gh-repos "f" "Fork Repo" #'fork-repo)
-  (magit-key-mode-insert-action 'gh-repos "r" "Rename Repo" #'rename-repo)
-  (magit-key-mode-insert-action 'gh-repos "e" "Edit Repo" #'edit-repo)
-    (magit-key-mode-insert-action 'gh-repos "R" "Add Repo as a Remote"
-                                #'add-remote-to-rep))
-
-(define-key magit-gh-repos-mode-map "u" #'user-repos)
-(define-key magit-gh-repos-mode-map "F" #'forks-list)
-(define-key magit-gh-repos-mode-map "c" #'create-repo)
-(define-key magit-gh-repos-mode-map "d" #'delete-repo)
-(define-key magit-gh-repos-mode-map "f" #'fork-repo)
-(define-key magit-gh-repos-mode-map "r" #'rename-repo)
-(define-key magit-gh-repos-mode-map "e" #'edit-repo)
-(define-key magit-gh-repos-mode-map "R" #'add-remote-to-repo)
-
 (defconst api (gh-repos-api "*api*"))
 
 (defcustom url-slot :ssh-url
   "Which URL slot to use for adding remotes."
-  :type '(radio 
-          (const :tag "HTTPS" :clone-url)
+  :type '(radio (const :tag "HTTPS" :clone-url)
           (const :tag "GIT" :git-url)
           (const :tag "SSH" :ssh-url)))
 
-(defcustom formatters 
-  '((format "name: %s" (or name "(empty)"))
-    (format "description: %s" (or description "(empty)"))
-    (format "homepage: %s" (or homepage "(empty)"))
-    (format "private: %s" (or private "(empty)"))
-    (format "url: %s" (or url "(empty)"))
-    (format "html-url: %s" (or html-url "(empty)"))
-    (format "clone-url: %s" (or clone-url "(empty)"))
-    (format "git-url: %s" (or git-url "(empty)"))
-    (format "ssh-url: %s" (or ssh-url "(empty)"))
-    (format "svn-url: %s" (or svn-url "(empty)"))
-    (format "mirror-url: %s" (or mirror-url "(empty)"))
-    (format "owner: %s" (or owner "(empty)"))
-    (format "id: %s" (or id "(empty)"))
-    (format "full-name: %s" (or full-name "(empty)"))
-    (format "language: %s" (or language "(empty)"))
-    (format "fork: %s" (or fork "(empty)"))
-    (format "forks: %s" (or forks "(empty)"))
-    (format "forks-count: %s" (or forks-count "(empty)"))
-    (format "watchers: %s" (or watchers "(empty)"))
-    (format "watchers-count: %s" (or watchers-count "(empty)"))
-    (format "size: %s" (or size "(empty)"))
-    (format "master-branch: %s" (or master-branch "(empty)"))
-    (format "open-issues: %s" (or open-issues "(empty)"))
-    (format "pushed-at: %s" (or pushed-at "(empty)"))
-    (format "created-at: %s" (or created-at "(empty)"))
-    (format "updated-at: %s" (or updated-at "(empty)"))
-    (format "organisation: %s" (or organisation "(empty)"))
-    (format "parent: %s" (or parent "(empty)"))
-    (format "source: %s" (or source "(empty)"))
-    (format "has-issues: %s" (or has-issues "(empty)"))
-    (format "has-wiki: %s" (or has-wiki "(empty)"))
-    (format "has-downloads: %s" (or has-downloads "(empty)"))) 
-  "Each form produces descendant section in repo output. ")
+(defvar read-repo-name-history nil)
 
-(defun display-list (items &optional title)
-  (let ((ewoc (ewoc-create #'display-item nil nil 'nosep)))
-    (magit-with-section (section section ewoc title)
-      (mapc (apply-partially 'ewoc-enter-last ewoc) items))))
-
-(defun display-item (entry)
-  (let ((context (mapcar (lambda (s) (cons s (slot-value entry s)))
-                         (object-slots entry)))) 
-    (magit-with-section (section section entry)
-      (dolist (form formatters)
-        (insert (eval form context) ?\n)))))
-
-(defmacro mode-setup (buffer switch-func mode refresh-func &rest refresh-args)
-  "Clone of `magit-mode-setup' independent of top-dir."
-  `(with-current-buffer
-       (magit-mode-display-buffer ,buffer ,mode ,switch-func)
-     (setq magit-refresh-function ,refresh-func
-           magit-refresh-args (list ,@refresh-args))
-     (funcall ,mode) 
-     (magit-mode-refresh-buffer)))
-
-(defcustom user-repos-buffer-name "%s's repos"
-  "Format for `magit-gh-repos-user-repos' buffer name.")
-
-(defcustom user-repos-switch-function 'pop-to-buffer
-  "Function for `magit-gh-repos-user-repos' to use for switching buffers.")
-
-(defun user-repos (username &optional switch-function)
-  (interactive (list (let* ((default (gh-api-get-username api))
-                            (answer (magit-completing-read 
-                                     "Show repos owned by user" 
-                                     nil nil nil nil nil default)))
-                       (if (string= "" answer) default answer))))
-  (mode-setup 
-   (format magit-gh-repos-user-repos-buffer-name username)
-   (or switch-function magit-gh-repos-user-repos-switch-function)
-   'magit-gh-repos-mode
-   (lambda (username) 
-     (magit-gh-repos-display-list
-      (oref (gh-repos-user-list magit-gh-repos-api username) :data)
-      (format "%s's repos" username))) 
-   username))
-
-(defcustom forks-list-buffer-name "%s's repos"
-  "Format for `magit-gh-repos-forks-list' buffer name.")
-
-(defcustom forks-list-switch-function 'pop-to-buffer
-  "Function for `magit-gh-repos-forks-list' to use for switching buffers.")
-
-(defun forks-list (repo-name &optional recursive switch-function)
-  (interactive (list (read-repo-name "Forks for repo")))
-  (let ((repo (get-repo-by-name repo-name))) 
-    (mode-setup 
-     (format magit-gh-repos-forks-list-buffer-name (oref repo full-name))
-     (or switch-function magit-gh-repos-forks-list-switch-function)
-     'magit-gh-repos-mode
-     (lambda (repo) 
-       (magit-gh-repos-display-list
-        (oref (gh-repos-forks-list magit-gh-repos-api repo) :data)
-        (format "%s's forks" (oref repo full-name)))) repo)))
-
-;; Basic Commands
-
-(defun get-remotes (&optional url)
-  "When URL is specified returns matching alist entry.
-Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
+(defun get-all-remotes ()
+  "Return alist of all remotes in current repo in form (REMOTE . URL)."
   (let* ((lines (magit-git-lines "remote" "-v"))
          (chunks (mapcar 'split-string lines))
          (alist (mapcar 'butlast chunks)))
-    (mapc (lambda (c) (setcdr c (cadr c))) alist)
-    (if url (rassoc url alist) alist)))
+    (mapcar (lambda (c) (cons (car c) (cadr c))) alist)))
 
-(defun add-remote-to-repo (name)
-  "Add a repo referenced by NAME as remote."
-  (interactive (list (read-repo-name "Add remote to repo"))) ;
-  (add-remote-to-repo-1 (get-repo-by-name name)))
-
-(defun add-remote-to-repo-1 (repo)
-  ;; Extracted so the commands can bypass name resolution
-  (let* ((url (slot-value repo url-slot))
-         (remotes (get-remotes))
+(defun add-remote-to-repo (repo-or-name &optional top-dir)
+  (interactive (list (read-repo-name "Add remote to repo") (read-top-dir))) ;
+  (let* ((repo (if (gh-repos-repo-p repo-or-name) repo-or-name
+                 (get-repo-by-name repo-or-name)))
+         (url (slot-value repo url-slot))
+         (default-directory (or (when top-dir
+                                  (magit-get-top-dir top-dir))
+                                default-directory))
+         (remotes (get-all-remotes))
          (remote "origin"))
     (unless (rassoc url remotes)
       (when (assoc remote remotes)
@@ -215,25 +76,11 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
       (user-error (cdr (assq 'status-string (oref resp :headers)))))
     (oref resp :data)))
 
-(defvar read-repo-name-history)
-
 (defun read-repo-name (prompt)
-  (let (collection default)
-    (let ((info (and magit-root-section 
-                     (magit-section-info magit-root-section))))
-      (when (ewoc-p info) 
-        (setq collection
-              (mapcar (lambda (repo) (oref repo :name)) 
-                      (ewoc-collect info 'gh-repos-repo-p)))
-        (let* ((current (magit-current-section))
-               (info (and current (magit-section-info current))))
-          (when (gh-repos-repo-p info)
-            (setq default (oref info :name))))))
-    (magit-completing-read prompt collection nil nil nil 
-                           'read-repo-name-history default)))
+  (magit-completing-read prompt nil nil nil nil 'read-repo-name-history))
 
 (defun read-top-dir ()
-  (if current-prefix-arg 
+  (if current-prefix-arg
       (let ((dir (magit-read-top-dir
                   (> (prefix-numeric-value current-prefix-arg)
                      4))))
@@ -249,9 +96,8 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
          (resp (gh-repos-repo-new api repo)))
     (unless (= 201 (oref resp :http-status))
       (user-error (cdr (assq 'status-string (oref resp :headers)))))
-    (let ((default-directory default-directory))
-      (when (and top-dir (setq default-directory (magit-get-top-dir top-dir)))
-        (add-remote-to-repo-1 (oref resp :data))))))
+    (when (and top-dir (magit-get-top-dir top-dir))
+      (add-remote-to-repo (oref resp :data) top-dir))))
 
 (defun delete-repo (name &optional top-dir)
   (interactive (list (read-repo-name "Delete repo") (read-top-dir)))
@@ -259,10 +105,10 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
          (resp (gh-repos-repo-delete api (oref repo :name))))
     (unless (= 204 (oref resp :http-status))
       (user-error (cdr (assq 'status-string (oref resp :headers)))))
-    (let ((default-directory default-directory))
-      (when (and top-dir (setq default-directory (magit-get-top-dir top-dir)))
-        (let ((remote (get-remotes (slot-value repo url-slot))))
-          (when remote (magit-remove-remote (car remote))))))))
+    (when (and top-dir (magit-get-top-dir top-dir))
+      (let* ((default-directory (magit-get-top-dir top-dir))
+             (remote (rassoc (slot-value repo url-slot) (get-all-remotes))))
+        (when remote (magit-remove-remote (car remote)))))))
 
 (defun fork-repo (name &optional top-dir)
   (interactive (list (read-repo-name "Fork repo") (read-top-dir)))
@@ -270,9 +116,9 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
          (resp (gh-repos-fork api repo)))
     (unless (= 202 (oref resp :http-status))
       (user-error (cdr (assq 'status-string (oref resp :headers)))))
-    (let ((default-directory default-directory))
-      (when (and top-dir (setq default-directory (magit-get-top-dir top-dir)))
-        (add-remote-to-repo-1 (oref resp :data))))))
+    (when (and top-dir (magit-get-top-dir top-dir))
+      (let* ((default-directory (magit-get-top-dir top-dir)))
+        (add-remote-to-repo (oref resp :data) top-dir)))))
 
 (defun rename-repo (name new-name &optional top-dir)
   (interactive
@@ -286,67 +132,12 @@ Otherwise returns alist (REMOTE . URL) of all remotes in current repo."
            (resp (gh-repos-repo-rename api repo new-name)))
       (unless (= 200 (oref resp :http-status))
         (user-error (cdr (assq 'status-string (oref resp :headers)))))
-      (let ((default-directory default-directory))
-        (when (and top-dir (setq default-directory (magit-get-top-dir top-dir)))
-          (let ((remote (get-remotes (slot-value repo url-slot))))
-            (when remote (magit-git-success
-                          (list "remote" "set-url" (car remote) 
-                                (slot-value (oref resp :data) url-slot))))))))))
-
-(defun edit-repo (name)
-  (interactive (list (read-repo-name "Edit repo")))
-  (let ((repo (get-repo-by-name name)))
-    (customize-object (magit-gh-repos-editable-repo repo)))))
-
-(defclass magit-gh-repos-editable-repo (gh-repos-repo-stub)
-  ((name :initarg :name :custom string)
-   (description :initarg :description :custom string)
-   (homepage :initarg :homepage :custom string)
-   (private :initarg :private :custom boolean)
-   (has-issues :initarg :has-issues :custom boolean)
-   (has-wiki :initarg :has-wiki :custom boolean)
-   (has-downloads :initarg :has-downloads :custom boolean)
-   (repo :initarg :repo))
-  "Another class for GitHub repositories")
-
-(defmethod constructor :static ((cls magit-gh-repos-editable-repo) repo)
-  (let* ((editable-repo 
-          (call-next-method 'magit-gh-repos-editable-repo (object-name repo))))
-    (with-slots (name description homepage private 
-                      has-issues has-wiki has-downloads)
-        editable-repo
-      (setq name (oref repo :name)
-            description (oref repo :description)
-            homepage (oref repo :homepage)
-            private (eq (oref repo :private) :json-true))
-      (when (object-of-class-p repo 'gh-repos-repo)
-        (setq has-issues (oref repo :has-issues)
-              has-wiki (oref repo :has-wiki)
-              has-downloads (oref repo :has-downloads))))
-    (oset editable-repo :repo repo)
-    editable-repo))
-
-(defmethod eieio-done-customizing ((repo magit-gh-repos-editable-repo))
-  (let* ((orig (oref repo :repo))
-         (old-name (oref orig :name))
-         (new-name (oref repo :name)))
-    (unless (equal old-name new-name)
-      (magit-gh-repos-rename-repo old-name new-name))) 
-  (with-slots (name description homepage private 
-                    has-issues has-wiki has-downloads)
-      (oref repo :repo)
-    (setq name (oref repo :name)
-          description (oref repo :description)
-          homepage (oref repo :homepage)
-          private (if (oref repo :private) :json-true :json-false))
-    (when (object-of-class-p (oref repo :repo) 'gh-repos-repo)
-      (setq has-issues (oref repo :has-issues)
-            has-wiki (oref repo :has-wiki)
-            has-downloads (oref repo :has-downloads))))
-  (gh-repos-repo-update magit-gh-repos-api (oref repo :repo) nil
-                        :issues (oref repo :has-issues)
-                        :wiki (oref repo :has-wiki)
-                        :downloads (oref repo :has-downloads)))
+      (when (and top-dir (magit-get-top-dir top-dir))
+        (let* ((default-directory (magit-get-top-dir top-dir))
+               (remote (rassoc (slot-value repo url-slot) (get-all-remotes)))
+               (url (slot-value (oref resp :data) url-slot)))
+          (when remote (magit-git-success
+                        (list "remote" "set-url" (car remote) url)))))))))
 
 (provide 'magit-gh-repos)
 
